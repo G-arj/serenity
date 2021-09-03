@@ -2,13 +2,14 @@ name: Coverity Static Analysis
 
 on:
   push:
-    branches: master
+    branches: coverity-wip # TODO UDNO THIS
 
 env:
   COVERITY_SCAN_PROJECT_NAME: 'SerenityOS%2Fserenity'
   COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
   COVERITY_SCAN_NOTIFICATION_EMAIL: 'bgianf@serenity.org'
-  #COVERITY_UNSUPPORTED_COMPILER_INVOCATION: 1
+  # Needed because coverity doesn't support -std=c++2a yet
+  COVERITY_UNSUPPORTED_COMPILER_INVOCATION: 1
 
 jobs:
   build:
@@ -82,7 +83,12 @@ jobs:
     - name: Build with cov-build
       working-directory: ${{ github.workspace }}/Build
       run: |
+        cov-configure --template --comptype gcc --compiler i686-pc-serenity-gcc
         cov-build --dir cov-int ninja
+
+    - name: Print Coverity Logs
+      working-directory: ${{ github.workspace }}/Build
+      run: '[ ! -e cov-int/build-log.txt ] || cat  cov-int/build-log.txt'
 
     - name: Submit the result to Coverity Scan
       working-directory: ${{ github.workspace }}/Build

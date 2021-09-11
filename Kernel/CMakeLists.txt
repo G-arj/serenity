@@ -409,6 +409,10 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.1")
         # Zero any registers used within a function on return (to reduce data lifetime and ROP gadgets).
         add_compile_options(-fzero-call-used-regs=used-gpr)
+
+        # Auto initialize trivial types on the stack. Note: This isn't natively supported by the GCC 11 series.
+        # It was back ported for serenity, see Toolchain/Patches/gcc-ftrivial-auto-var-init.patch
+        add_compile_options(-ftrivial-auto-var-init=pattern)
     endif()
     link_directories(${TOOLCHAIN_ROOT}/${SERENITY_ARCH}-pc-serenity/lib)
     link_directories(${TOOLCHAIN_ROOT}/lib/gcc/${SERENITY_ARCH}-pc-serenity/${GCC_VERSION}/)

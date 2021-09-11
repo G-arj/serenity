@@ -301,6 +301,13 @@ pushd "$DIR/Tarballs"
         fi
         $MD5SUM "$DIR/Patches/gcc-ftrivial-auto-var-init-fix-empty-types.patch" >> .patch.applied
 
+        if [ "$git_patch" = "1" ]; then
+            git apply --whitespace=nowarn "$DIR"/Patches/gcc-ftrivial-auto-var-init-fix-nested-functions.patch > /dev/null
+        else
+            patch -p1 < "$DIR/Patches/gcc-ftrivial-auto-var-init-fix-nested-functions.patch" > /dev/null
+        fi
+        $MD5SUM "$DIR/Patches/gcc-ftrivial-auto-var-init-fix-nested-functions.patch" >> .patch.applied
+
     popd
 
     if [ "$SYSTEM_NAME" = "Darwin" ]; then

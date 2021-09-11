@@ -1,0 +1,90 @@
+From 79f488de3036a4a4be08df2a782e6eb02419db19 Mon Sep 17 00:00:00 2001
+From: Richard Biener <rguenther@suse.de>
+Date: Fri, 10 Sep 2021 12:28:09 +0200
+Subject: [PATCH] middle-end/102273 - avoid ICE with auto-init and nested
+ functions
+
+This refactors expansion to consider non-decl LHS.  I suspect
+the is_val argument is not needed.
+
+2021-09-10  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/102273
+	* internal-fn.c (expand_DEFERRED_INIT): Always expand non-SSA vars.
+
+	* gcc.dg/pr102273.c: New testcase.
+---
+ gcc/internal-fn.c               | 22 +++++++---------------
+ gcc/testsuite/gcc.dg/pr102273.c | 11 +++++++++++
+ 2 files changed, 18 insertions(+), 15 deletions(-)
+ create mode 100644 gcc/testsuite/gcc.dg/pr102273.c
+
+diff --git a/gcc/internal-fn.c b/gcc/internal-fn.c
+index ada2a820ff157..b1283690080a3 100644
+--- a/gcc/internal-fn.c
++++ b/gcc/internal-fn.c
+@@ -3006,31 +3006,23 @@ expand_DEFERRED_INIT (internal_fn, gcall *stmt)
+   tree var_size = gimple_call_arg (stmt, 0);
+   enum auto_init_type init_type
+     = (enum auto_init_type) TREE_INT_CST_LOW (gimple_call_arg (stmt, 1));
+-  bool is_vla = (bool) TREE_INT_CST_LOW (gimple_call_arg (stmt, 2));
+   bool reg_lhs = true;
+ 
+   tree var_type = TREE_TYPE (lhs);
+   gcc_assert (init_type > AUTO_INIT_UNINITIALIZED);
+ 
+-  if (DECL_P (lhs))
+-    {
+-      rtx tem = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+-      reg_lhs = !MEM_P (tem);
+-    }
+-  else if (TREE_CODE (lhs) == SSA_NAME)
++  if (TREE_CODE (lhs) == SSA_NAME)
+     reg_lhs = true;
+   else
+     {
+-      gcc_assert (is_vla);
+-      reg_lhs = false;
++      rtx tem = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
++      reg_lhs = !MEM_P (tem);
+     }
+ 
+-
+   if (!reg_lhs)
+     {
+-    /* If this is a VLA or the variable is not in register,
+-       expand to a memset to initialize it.  */
+-
++      /* If this is a VLA or the variable is not in register,
++	 expand to a memset to initialize it.  */
+       mark_addressable (lhs);
+       tree var_addr = build_fold_addr_expr (lhs);
+ 
+@@ -3045,8 +3037,8 @@ expand_DEFERRED_INIT (internal_fn, gcall *stmt)
+     }
+   else
+     {
+-    /* If this variable is in a register, use expand_assignment might
+-       generate better code.  */
++      /* If this variable is in a register, use expand_assignment might
++	 generate better code.  */
+       tree init = build_zero_cst (var_type);
+       unsigned HOST_WIDE_INT total_bytes
+ 	= tree_to_uhwi (TYPE_SIZE_UNIT (var_type));
+diff --git a/gcc/testsuite/gcc.dg/pr102273.c b/gcc/testsuite/gcc.dg/pr102273.c
+new file mode 100644
+index 0000000000000..568e44ebfefd2
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/pr102273.c
+@@ -0,0 +1,11 @@
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++void bar();
++
++struct A { char d; };
++void foo()
++{
++  struct A e;
++  void baz() { bar(e); }
++}

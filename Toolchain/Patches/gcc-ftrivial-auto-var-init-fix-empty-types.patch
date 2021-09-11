@@ -1,0 +1,45 @@
+From 1dae802b685937b1dc52e49d0641c75f3186ba14 Mon Sep 17 00:00:00 2001
+From: Richard Biener <rguenther@suse.de>
+Date: Fri, 10 Sep 2021 10:17:24 +0200
+Subject: [PATCH] middle-end/102269 - avoid auto-init of empty types
+
+This avoids initializing empty types for which we'll eventually
+leave a .DEFERRED_INIT call without a LHS.
+
+2021-09-10  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/102269
+	* gimplify.c (is_var_need_auto_init): Empty types do not need
+	initialization.
+
+	* gcc.dg/pr102269.c: New testcase.
+---
+ gcc/gimplify.c                  | 3 ++-
+ gcc/testsuite/gcc.dg/pr102269.c | 4 ++++
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+ create mode 100644 gcc/testsuite/gcc.dg/pr102269.c
+
+diff --git a/gcc/gimplify.c b/gcc/gimplify.c
+index 3314f76cf3ff8..8820f873993f9 100644
+--- a/gcc/gimplify.c
++++ b/gcc/gimplify.c
+@@ -1826,7 +1826,8 @@ is_var_need_auto_init (tree decl)
+ {
+   if (auto_var_p (decl)
+       && (flag_auto_var_init > AUTO_INIT_UNINITIALIZED)
+-      && (!lookup_attribute ("uninitialized", DECL_ATTRIBUTES (decl))))
++      && (!lookup_attribute ("uninitialized", DECL_ATTRIBUTES (decl)))
++      && !is_empty_type (TREE_TYPE (decl)))
+     return true;
+   return false;
+ }
+diff --git a/gcc/testsuite/gcc.dg/pr102269.c b/gcc/testsuite/gcc.dg/pr102269.c
+new file mode 100644
+index 0000000000000..9d41b8fd7c7f9
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/pr102269.c
+@@ -0,0 +1,4 @@
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++void fn() { int a[0]; }

@@ -1,0 +1,4607 @@
+From a25e0b5e6ac8a77a71c229e0a7b744603365b0e9 Mon Sep 17 00:00:00 2001
+From: qing zhao <qing.zhao@oracle.com>
+Date: Thu, 9 Sep 2021 15:44:49 -0700
+Subject: [PATCH] Add -ftrivial-auto-var-init option and uninitialized variable
+ attribute.
+
+Initialize automatic variables with either a pattern or with zeroes to increase
+the security and predictability of a program by preventing uninitialized memory
+disclosure and use.
+GCC still considers an automatic variable that doesn't have an explicit
+initializer as uninitialized, -Wuninitialized will still report warning messages
+on such automatic variables.
+With this option, GCC will also initialize any padding of automatic variables
+that have structure or union types to zeroes.
+You can control this behavior for a specific variable by using the variable
+attribute "uninitialized" to control runtime overhead.
+
+gcc/ChangeLog:
+
+2021-09-09  qing zhao  <qing.zhao@oracle.com>
+
+	* builtins.c (expand_builtin_memset): Make external visible.
+	* builtins.h (expand_builtin_memset): Declare extern.
+	* common.opt (ftrivial-auto-var-init=): New option.
+	* doc/extend.texi: Document the uninitialized attribute.
+	* doc/invoke.texi: Document -ftrivial-auto-var-init.
+	* flag-types.h (enum auto_init_type): New enumerated type
+	auto_init_type.
+	* gimple-fold.c (clear_padding_type): Add one new parameter.
+	(clear_padding_union): Likewise.
+	(clear_padding_emit_loop): Likewise.
+	(clear_type_padding_in_mask): Likewise.
+	(gimple_fold_builtin_clear_padding): Handle this new parameter.
+	* gimplify.c (gimple_add_init_for_auto_var): New function.
+	(gimple_add_padding_init_for_auto_var): New function.
+	(is_var_need_auto_init): New function.
+	(gimplify_decl_expr): Add initialization to automatic variables per
+	users' requests.
+	(gimplify_call_expr): Add one new parameter for call to
+	__builtin_clear_padding.
+	(gimplify_init_constructor): Add padding initialization in the end.
+	* internal-fn.c (INIT_PATTERN_VALUE): New macro.
+	(expand_DEFERRED_INIT): New function.
+	* internal-fn.def (DEFERRED_INIT): New internal function.
+	* tree-cfg.c (verify_gimple_call): Verify calls to .DEFERRED_INIT.
+	* tree-sra.c (generate_subtree_deferred_init): New function.
+	(scan_function): Avoid setting cannot_scalarize_away_bitmap for
+	calls to .DEFERRED_INIT.
+	(sra_modify_deferred_init): New function.
+	(sra_modify_function_body): Handle calls to DEFERRED_INIT specially.
+	* tree-ssa-structalias.c (find_func_aliases_for_call): Likewise.
+	* tree-ssa-uninit.c (warn_uninit): Handle calls to DEFERRED_INIT
+	specially.
+	(check_defs): Likewise.
+	(warn_uninitialized_vars): Likewise.
+	* tree-ssa.c (ssa_undefined_value_p): Likewise.
+	* tree.c (build_common_builtin_nodes): Build tree node for
+	BUILT_IN_CLEAR_PADDING when needed.
+
+gcc/c-family/ChangeLog:
+
+2021-09-09  qing zhao  <qing.zhao@oracle.com>
+
+	* c-attribs.c (handle_uninitialized_attribute): New function.
+	(c_common_attribute_table): Add "uninitialized" attribute.
+
+gcc/testsuite/ChangeLog:
+
+2021-09-09  qing zhao  <qing.zhao@oracle.com>
+
+	* c-c++-common/auto-init-1.c: New test.
+	* c-c++-common/auto-init-10.c: New test.
+	* c-c++-common/auto-init-11.c: New test.
+	* c-c++-common/auto-init-12.c: New test.
+	* c-c++-common/auto-init-13.c: New test.
+	* c-c++-common/auto-init-14.c: New test.
+	* c-c++-common/auto-init-15.c: New test.
+	* c-c++-common/auto-init-16.c: New test.
+	* c-c++-common/auto-init-2.c: New test.
+	* c-c++-common/auto-init-3.c: New test.
+	* c-c++-common/auto-init-4.c: New test.
+	* c-c++-common/auto-init-5.c: New test.
+	* c-c++-common/auto-init-6.c: New test.
+	* c-c++-common/auto-init-7.c: New test.
+	* c-c++-common/auto-init-8.c: New test.
+	* c-c++-common/auto-init-9.c: New test.
+	* c-c++-common/auto-init-esra.c: New test.
+	* c-c++-common/auto-init-padding-1.c: New test.
+	* c-c++-common/auto-init-padding-2.c: New test.
+	* c-c++-common/auto-init-padding-3.c: New test.
+	* g++.dg/auto-init-uninit-pred-1_a.C: New test.
+	* g++.dg/auto-init-uninit-pred-2_a.C: New test.
+	* g++.dg/auto-init-uninit-pred-3_a.C: New test.
+	* g++.dg/auto-init-uninit-pred-4.C: New test.
+	* gcc.dg/auto-init-sra-1.c: New test.
+	* gcc.dg/auto-init-sra-2.c: New test.
+	* gcc.dg/auto-init-uninit-1.c: New test.
+	* gcc.dg/auto-init-uninit-12.c: New test.
+	* gcc.dg/auto-init-uninit-13.c: New test.
+	* gcc.dg/auto-init-uninit-14.c: New test.
+	* gcc.dg/auto-init-uninit-15.c: New test.
+	* gcc.dg/auto-init-uninit-16.c: New test.
+	* gcc.dg/auto-init-uninit-17.c: New test.
+	* gcc.dg/auto-init-uninit-18.c: New test.
+	* gcc.dg/auto-init-uninit-19.c: New test.
+	* gcc.dg/auto-init-uninit-2.c: New test.
+	* gcc.dg/auto-init-uninit-20.c: New test.
+	* gcc.dg/auto-init-uninit-21.c: New test.
+	* gcc.dg/auto-init-uninit-22.c: New test.
+	* gcc.dg/auto-init-uninit-23.c: New test.
+	* gcc.dg/auto-init-uninit-24.c: New test.
+	* gcc.dg/auto-init-uninit-25.c: New test.
+	* gcc.dg/auto-init-uninit-26.c: New test.
+	* gcc.dg/auto-init-uninit-3.c: New test.
+	* gcc.dg/auto-init-uninit-34.c: New test.
+	* gcc.dg/auto-init-uninit-36.c: New test.
+	* gcc.dg/auto-init-uninit-37.c: New test.
+	* gcc.dg/auto-init-uninit-4.c: New test.
+	* gcc.dg/auto-init-uninit-5.c: New test.
+	* gcc.dg/auto-init-uninit-6.c: New test.
+	* gcc.dg/auto-init-uninit-8.c: New test.
+	* gcc.dg/auto-init-uninit-9.c: New test.
+	* gcc.dg/auto-init-uninit-A.c: New test.
+	* gcc.dg/auto-init-uninit-B.c: New test.
+	* gcc.dg/auto-init-uninit-C.c: New test.
+	* gcc.dg/auto-init-uninit-H.c: New test.
+	* gcc.dg/auto-init-uninit-I.c: New test.
+	* gcc.target/aarch64/auto-init-1.c: New test.
+	* gcc.target/aarch64/auto-init-2.c: New test.
+	* gcc.target/aarch64/auto-init-3.c: New test.
+	* gcc.target/aarch64/auto-init-4.c: New test.
+	* gcc.target/aarch64/auto-init-5.c: New test.
+	* gcc.target/aarch64/auto-init-6.c: New test.
+	* gcc.target/aarch64/auto-init-7.c: New test.
+	* gcc.target/aarch64/auto-init-8.c: New test.
+	* gcc.target/aarch64/auto-init-padding-1.c: New test.
+	* gcc.target/aarch64/auto-init-padding-10.c: New test.
+	* gcc.target/aarch64/auto-init-padding-11.c: New test.
+	* gcc.target/aarch64/auto-init-padding-12.c: New test.
+	* gcc.target/aarch64/auto-init-padding-2.c: New test.
+	* gcc.target/aarch64/auto-init-padding-3.c: New test.
+	* gcc.target/aarch64/auto-init-padding-4.c: New test.
+	* gcc.target/aarch64/auto-init-padding-5.c: New test.
+	* gcc.target/aarch64/auto-init-padding-6.c: New test.
+	* gcc.target/aarch64/auto-init-padding-7.c: New test.
+	* gcc.target/aarch64/auto-init-padding-8.c: New test.
+	* gcc.target/aarch64/auto-init-padding-9.c: New test.
+	* gcc.target/i386/auto-init-1.c: New test.
+	* gcc.target/i386/auto-init-2.c: New test.
+	* gcc.target/i386/auto-init-21.c: New test.
+	* gcc.target/i386/auto-init-22.c: New test.
+	* gcc.target/i386/auto-init-23.c: New test.
+	* gcc.target/i386/auto-init-24.c: New test.
+	* gcc.target/i386/auto-init-3.c: New test.
+	* gcc.target/i386/auto-init-4.c: New test.
+	* gcc.target/i386/auto-init-5.c: New test.
+	* gcc.target/i386/auto-init-6.c: New test.
+	* gcc.target/i386/auto-init-7.c: New test.
+	* gcc.target/i386/auto-init-8.c: New test.
+	* gcc.target/i386/auto-init-padding-1.c: New test.
+	* gcc.target/i386/auto-init-padding-10.c: New test.
+	* gcc.target/i386/auto-init-padding-11.c: New test.
+	* gcc.target/i386/auto-init-padding-12.c: New test.
+	* gcc.target/i386/auto-init-padding-2.c: New test.
+	* gcc.target/i386/auto-init-padding-3.c: New test.
+	* gcc.target/i386/auto-init-padding-4.c: New test.
+	* gcc.target/i386/auto-init-padding-5.c: New test.
+	* gcc.target/i386/auto-init-padding-6.c: New test.
+	* gcc.target/i386/auto-init-padding-7.c: New test.
+	* gcc.target/i386/auto-init-padding-8.c: New test.
+	* gcc.target/i386/auto-init-padding-9.c: New test.
+---
+ gcc/builtins.c                                |   3 +-
+ gcc/builtins.h                                |   1 +
+ gcc/c-family/c-attribs.c                      |  27 ++
+ gcc/common.opt                                |  16 ++
+ gcc/doc/extend.texi                           |  16 ++
+ gcc/doc/invoke.texi                           |  41 ++-
+ gcc/flag-types.h                              |   7 +
+ gcc/gimple-fold.c                             |  54 ++--
+ gcc/gimplify.c                                | 151 ++++++++++-
+ gcc/internal-fn.c                             |  99 ++++++++
+ gcc/internal-fn.def                           |   4 +
+ gcc/testsuite/c-c++-common/auto-init-1.c      |  39 +++
+ gcc/testsuite/c-c++-common/auto-init-10.c     |  22 ++
+ gcc/testsuite/c-c++-common/auto-init-11.c     |  14 ++
+ gcc/testsuite/c-c++-common/auto-init-12.c     |  14 ++
+ gcc/testsuite/c-c++-common/auto-init-13.c     |  23 ++
+ gcc/testsuite/c-c++-common/auto-init-14.c     |  23 ++
+ gcc/testsuite/c-c++-common/auto-init-15.c     |  13 +
+ gcc/testsuite/c-c++-common/auto-init-16.c     |  13 +
+ gcc/testsuite/c-c++-common/auto-init-2.c      |  39 +++
+ gcc/testsuite/c-c++-common/auto-init-3.c      |  19 ++
+ gcc/testsuite/c-c++-common/auto-init-4.c      |  19 ++
+ gcc/testsuite/c-c++-common/auto-init-5.c      |  21 ++
+ gcc/testsuite/c-c++-common/auto-init-6.c      |  21 ++
+ gcc/testsuite/c-c++-common/auto-init-7.c      |  35 +++
+ gcc/testsuite/c-c++-common/auto-init-8.c      |  35 +++
+ gcc/testsuite/c-c++-common/auto-init-9.c      |  20 ++
+ gcc/testsuite/c-c++-common/auto-init-esra.c   |  35 +++
+ .../c-c++-common/auto-init-padding-1.c        |  23 ++
+ .../c-c++-common/auto-init-padding-2.c        | 114 +++++++++
+ .../c-c++-common/auto-init-padding-3.c        | 114 +++++++++
+ .../g++.dg/auto-init-uninit-pred-1_a.C        |   3 +
+ .../g++.dg/auto-init-uninit-pred-2_a.C        |   3 +
+ .../g++.dg/auto-init-uninit-pred-3_a.C        |   3 +
+ .../g++.dg/auto-init-uninit-pred-4.C          |   3 +
+ gcc/testsuite/gcc.dg/auto-init-sra-1.c        |  24 ++
+ gcc/testsuite/gcc.dg/auto-init-sra-2.c        |  24 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-1.c     |   5 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-12.c    |   4 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-13.c    |  10 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-14.c    |   4 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-15.c    |  26 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-16.c    |  25 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-17.c    |  15 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-18.c    |   3 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-19.c    |  26 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-2.c     |   5 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-20.c    |   4 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-21.c    |   4 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-22.c    |   3 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-23.c    |  27 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-24.c    |   3 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-25.c    |  23 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-26.c    |  23 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-3.c     |   5 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-34.c    |  60 +++++
+ gcc/testsuite/gcc.dg/auto-init-uninit-36.c    | 238 ++++++++++++++++++
+ gcc/testsuite/gcc.dg/auto-init-uninit-37.c    | 156 ++++++++++++
+ gcc/testsuite/gcc.dg/auto-init-uninit-4.c     |  10 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-5.c     |   6 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-6.c     |   7 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-8.c     |   8 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-9.c     |   8 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-A.c     |   7 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-B.c     |  17 ++
+ gcc/testsuite/gcc.dg/auto-init-uninit-C.c     |   5 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-H.c     |   5 +
+ gcc/testsuite/gcc.dg/auto-init-uninit-I.c     |   3 +
+ .../gcc.target/aarch64/auto-init-1.c          |  32 +++
+ .../gcc.target/aarch64/auto-init-2.c          |  35 +++
+ .../gcc.target/aarch64/auto-init-3.c          |  19 ++
+ .../gcc.target/aarch64/auto-init-4.c          |  19 ++
+ .../gcc.target/aarch64/auto-init-5.c          |  19 ++
+ .../gcc.target/aarch64/auto-init-6.c          |  18 ++
+ .../gcc.target/aarch64/auto-init-7.c          |  32 +++
+ .../gcc.target/aarch64/auto-init-8.c          |  32 +++
+ .../gcc.target/aarch64/auto-init-padding-1.c  |  17 ++
+ .../gcc.target/aarch64/auto-init-padding-10.c |  22 ++
+ .../gcc.target/aarch64/auto-init-padding-11.c |  27 ++
+ .../gcc.target/aarch64/auto-init-padding-12.c |  27 ++
+ .../gcc.target/aarch64/auto-init-padding-2.c  |  18 ++
+ .../gcc.target/aarch64/auto-init-padding-3.c  |  27 ++
+ .../gcc.target/aarch64/auto-init-padding-4.c  |  27 ++
+ .../gcc.target/aarch64/auto-init-padding-5.c  |  22 ++
+ .../gcc.target/aarch64/auto-init-padding-6.c  |  20 ++
+ .../gcc.target/aarch64/auto-init-padding-7.c  |  20 ++
+ .../gcc.target/aarch64/auto-init-padding-8.c  |  22 ++
+ .../gcc.target/aarch64/auto-init-padding-9.c  |  21 ++
+ gcc/testsuite/gcc.target/i386/auto-init-1.c   |  32 +++
+ gcc/testsuite/gcc.target/i386/auto-init-2.c   |  36 +++
+ gcc/testsuite/gcc.target/i386/auto-init-21.c  |  14 ++
+ gcc/testsuite/gcc.target/i386/auto-init-22.c  |  14 ++
+ gcc/testsuite/gcc.target/i386/auto-init-23.c  |  13 +
+ gcc/testsuite/gcc.target/i386/auto-init-24.c  |  13 +
+ gcc/testsuite/gcc.target/i386/auto-init-3.c   |  17 ++
+ gcc/testsuite/gcc.target/i386/auto-init-4.c   |  20 ++
+ gcc/testsuite/gcc.target/i386/auto-init-5.c   |  20 ++
+ gcc/testsuite/gcc.target/i386/auto-init-6.c   |  19 ++
+ gcc/testsuite/gcc.target/i386/auto-init-7.c   |  33 +++
+ gcc/testsuite/gcc.target/i386/auto-init-8.c   |  35 +++
+ .../gcc.target/i386/auto-init-padding-1.c     |  19 ++
+ .../gcc.target/i386/auto-init-padding-10.c    |  21 ++
+ .../gcc.target/i386/auto-init-padding-11.c    |  26 ++
+ .../gcc.target/i386/auto-init-padding-12.c    |  26 ++
+ .../gcc.target/i386/auto-init-padding-2.c     |  19 ++
+ .../gcc.target/i386/auto-init-padding-3.c     |  30 +++
+ .../gcc.target/i386/auto-init-padding-4.c     |  28 +++
+ .../gcc.target/i386/auto-init-padding-5.c     |  21 ++
+ .../gcc.target/i386/auto-init-padding-6.c     |  22 ++
+ .../gcc.target/i386/auto-init-padding-7.c     |  22 ++
+ .../gcc.target/i386/auto-init-padding-8.c     |  22 ++
+ .../gcc.target/i386/auto-init-padding-9.c     |  22 ++
+ gcc/tree-cfg.c                                |  47 +++-
+ gcc/tree-sra.c                                | 124 ++++++++-
+ gcc/tree-ssa-structalias.c                    |   3 +
+ gcc/tree-ssa-uninit.c                         |  48 ++++
+ gcc/tree-ssa.c                                |  40 +++
+ gcc/tree.c                                    |  13 +
+ 118 files changed, 3131 insertions(+), 44 deletions(-)
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-1.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-10.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-11.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-12.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-13.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-14.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-15.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-16.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-2.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-3.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-4.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-5.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-6.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-7.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-8.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-9.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-esra.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-padding-1.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-padding-2.c
+ create mode 100644 gcc/testsuite/c-c++-common/auto-init-padding-3.c
+ create mode 100644 gcc/testsuite/g++.dg/auto-init-uninit-pred-1_a.C
+ create mode 100644 gcc/testsuite/g++.dg/auto-init-uninit-pred-2_a.C
+ create mode 100644 gcc/testsuite/g++.dg/auto-init-uninit-pred-3_a.C
+ create mode 100644 gcc/testsuite/g++.dg/auto-init-uninit-pred-4.C
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-sra-1.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-sra-2.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-1.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-12.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-13.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-14.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-15.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-16.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-17.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-18.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-19.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-2.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-20.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-21.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-22.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-23.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-24.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-25.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-26.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-3.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-34.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-36.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-37.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-4.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-5.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-6.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-8.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-9.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-A.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-B.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-C.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-H.c
+ create mode 100644 gcc/testsuite/gcc.dg/auto-init-uninit-I.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-1.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-2.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-3.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-4.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-5.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-6.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-7.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-8.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-1.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-10.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-11.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-12.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-2.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-3.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-4.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-5.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-6.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-7.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-8.c
+ create mode 100644 gcc/testsuite/gcc.target/aarch64/auto-init-padding-9.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-1.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-2.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-21.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-22.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-23.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-24.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-3.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-4.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-5.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-6.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-7.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-8.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-1.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-10.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-11.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-12.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-2.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-3.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-4.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-5.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-6.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-7.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-8.c
+ create mode 100644 gcc/testsuite/gcc.target/i386/auto-init-padding-9.c
+
+diff --git a/gcc/builtins.c b/gcc/builtins.c
+index 9954862776125..3e57eb03af039 100644
+--- a/gcc/builtins.c
++++ b/gcc/builtins.c
+@@ -146,7 +146,6 @@ static rtx expand_builtin_stpncpy (tree, rtx);
+ static rtx expand_builtin_strncat (tree, rtx);
+ static rtx expand_builtin_strncpy (tree, rtx);
+ static rtx builtin_memset_gen_str (void *, HOST_WIDE_INT, scalar_int_mode);
+-static rtx expand_builtin_memset (tree, rtx, machine_mode);
+ static rtx expand_builtin_memset_args (tree, tree, tree, rtx, machine_mode, tree);
+ static rtx expand_builtin_bzero (tree);
+ static rtx expand_builtin_strlen (tree, rtx, machine_mode);
+@@ -6668,7 +6667,7 @@ builtin_memset_gen_str (void *data, HOST_WIDE_INT offset ATTRIBUTE_UNUSED,
+    try to get the result in TARGET, if convenient (and in mode MODE if that's
+    convenient).  */
+ 
+-static rtx
++rtx
+ expand_builtin_memset (tree exp, rtx target, machine_mode mode)
+ {
+   if (!validate_arglist (exp,
+diff --git a/gcc/builtins.h b/gcc/builtins.h
+index 16b47ac1a7b37..d330b78e5917a 100644
+--- a/gcc/builtins.h
++++ b/gcc/builtins.h
+@@ -112,6 +112,7 @@ extern tree mathfn_built_in (tree, combined_fn);
+ extern tree mathfn_built_in_type (combined_fn);
+ extern rtx builtin_strncpy_read_str (void *, HOST_WIDE_INT, scalar_int_mode);
+ extern rtx builtin_memset_read_str (void *, HOST_WIDE_INT, scalar_int_mode);
++extern rtx expand_builtin_memset (tree, rtx, machine_mode);
+ extern rtx expand_builtin_saveregs (void);
+ extern tree std_build_builtin_va_list (void);
+ extern tree std_fn_abi_va_list (tree);
+diff --git a/gcc/c-family/c-attribs.c b/gcc/c-family/c-attribs.c
+index d14e9c441b39b..007b928c54b8c 100644
+--- a/gcc/c-family/c-attribs.c
++++ b/gcc/c-family/c-attribs.c
+@@ -83,6 +83,7 @@ static tree handle_artificial_attribute (tree *, tree, tree, int, bool *);
+ static tree handle_flatten_attribute (tree *, tree, tree, int, bool *);
+ static tree handle_error_attribute (tree *, tree, tree, int, bool *);
+ static tree handle_used_attribute (tree *, tree, tree, int, bool *);
++static tree handle_uninitialized_attribute (tree *, tree, tree, int, bool *);
+ static tree handle_externally_visible_attribute (tree *, tree, tree, int,
+ 						 bool *);
+ static tree handle_no_reorder_attribute (tree *, tree, tree, int,
+@@ -333,6 +334,8 @@ const struct attribute_spec c_common_attribute_table[] =
+ 			      handle_used_attribute, NULL },
+   { "unused",                 0, 0, false, false, false, false,
+ 			      handle_unused_attribute, NULL },
++  { "uninitialized",	      0, 0, true, false, false, false,
++			      handle_uninitialized_attribute, NULL },
+   { "retain",                 0, 0, true,  false, false, false,
+ 			      handle_retain_attribute, NULL },
+   { "externally_visible",     0, 0, true,  false, false, false,
+@@ -1617,6 +1620,30 @@ handle_retain_attribute (tree *pnode, tree name, tree ARG_UNUSED (args),
+   return NULL_TREE;
+ }
+ 
++/* Handle an "uninitialized" attribute; arguments as in
++   struct attribute_spec.handler.  */
++
++static tree
++handle_uninitialized_attribute (tree *node, tree name, tree ARG_UNUSED (args),
++				int ARG_UNUSED (flags), bool *no_add_attrs)
++{
++  tree decl = *node;
++  if (!VAR_P (decl))
++    {
++      warning (OPT_Wattributes, "%qE attribute ignored because %qD "
++	       "is not a variable", name, decl);
++      *no_add_attrs = true;
++    }
++  else if (TREE_STATIC (decl) || DECL_EXTERNAL (decl))
++    {
++      warning (OPT_Wattributes, "%qE attribute ignored because %qD "
++	       "is not a local variable", name, decl);
++      *no_add_attrs = true;
++    }
++
++  return NULL_TREE;
++}
++
+ /* Handle a "externally_visible" attribute; arguments as in
+    struct attribute_spec.handler.  */
+ 
+diff --git a/gcc/common.opt b/gcc/common.opt
+index f103a7de004ba..b921f5e3b255e 100644
+--- a/gcc/common.opt
++++ b/gcc/common.opt
+@@ -3081,6 +3081,22 @@ ftree-scev-cprop
+ Common Var(flag_tree_scev_cprop) Init(1) Optimization
+ Enable copy propagation of scalar-evolution information.
+ 
++ftrivial-auto-var-init=
++Common Joined RejectNegative Enum(auto_init_type) Var(flag_auto_var_init) Init(AUTO_INIT_UNINITIALIZED) Optimization
++-ftrivial-auto-var-init=[uninitialized|pattern|zero]	Add initializations to automatic variables.
++
++Enum
++Name(auto_init_type) Type(enum auto_init_type) UnknownError(unrecognized automatic variable initialization type %qs)
++
++EnumValue
++Enum(auto_init_type) String(uninitialized) Value(AUTO_INIT_UNINITIALIZED)
++
++EnumValue
++Enum(auto_init_type) String(pattern) Value(AUTO_INIT_PATTERN)
++
++EnumValue
++Enum(auto_init_type) String(zero) Value(AUTO_INIT_ZERO)
++
+ ; -fverbose-asm causes extra commentary information to be produced in
+ ; the generated assembly code (to make it more readable).  This option
+ ; is generally only of use to those who actually need to read the
+diff --git a/gcc/doc/extend.texi b/gcc/doc/extend.texi
+index 52bc4e5b76e7c..8b324a097a4d6 100644
+--- a/gcc/doc/extend.texi
++++ b/gcc/doc/extend.texi
+@@ -7610,6 +7610,22 @@ will be placed in new, unique sections.
+ 
+ This additional functionality requires Binutils version 2.36 or later.
+ 
++@item uninitialized
++@cindex @code{uninitialized} variable attribute
++This attribute, attached to a variable with automatic storage, means that
++the variable should not be automatically initialized by the compiler when
++the option @code{-ftrivial-auto-var-init} presents.
++
++With the option @code{-ftrivial-auto-var-init}, all the automatic variables
++that do not have explicit initializers will be initialized by the compiler.
++These additional compiler initializations might incur run-time overhead,
++sometimes dramatically.  This attribute can be used to mark some variables
++to be excluded from such automatical initialization in order to reduce runtime
++overhead.
++
++This attribute has no effect when the option @code{-ftrivial-auto-var-init}
++does not present.
++
+ @item vector_size (@var{bytes})
+ @cindex @code{vector_size} variable attribute
+ This attribute specifies the vector size for the type of the declared
+diff --git a/gcc/doc/invoke.texi b/gcc/doc/invoke.texi
+index d4b3a66ee4fec..b08a5eb4d7330 100644
+--- a/gcc/doc/invoke.texi
++++ b/gcc/doc/invoke.texi
+@@ -573,9 +573,9 @@ Objective-C and Objective-C++ Dialects}.
+ -ftree-parallelize-loops=@var{n}  -ftree-pre  -ftree-partial-pre  -ftree-pta @gol
+ -ftree-reassoc  -ftree-scev-cprop  -ftree-sink  -ftree-slsr  -ftree-sra @gol
+ -ftree-switch-conversion  -ftree-tail-merge @gol
+--ftree-ter  -ftree-vectorize  -ftree-vrp  -funconstrained-commons @gol
+--funit-at-a-time  -funroll-all-loops  -funroll-loops @gol
+--funsafe-math-optimizations  -funswitch-loops @gol
++-ftree-ter  -ftree-vectorize  -ftree-vrp  -ftrivial-auto-var-init @gol
++-funconstrained-commons -funit-at-a-time  -funroll-all-loops @gol
++-funroll-loops -funsafe-math-optimizations  -funswitch-loops @gol
+ -fipa-ra  -fvariable-expansion-in-unroller  -fvect-cost-model  -fvpt @gol
+ -fweb  -fwhole-program  -fwpa  -fuse-linker-plugin -fzero-call-used-regs @gol
+ --param @var{name}=@var{value}
+@@ -11843,6 +11843,41 @@ Perform basic block vectorization on trees. This flag is enabled by default at
+ @option{-O3} and by @option{-ftree-vectorize}, @option{-fprofile-use},
+ and @option{-fauto-profile}.
+ 
++@item -ftrivial-auto-var-init=@var{choice}
++@opindex ftrivial-auto-var-init
++Initialize automatic variables with either a pattern or with zeroes to increase
++the security and predictability of a program by preventing uninitialized memory
++disclosure and use.
++GCC still considers an automatic variable that doesn't have an explicit
++initializer as uninitialized, -Wuninitialized will still report warning messages
++on such automatic variables.
++With this option, GCC will also initialize any padding of automatic variables
++that have structure or union types to zeroes.
++
++The three values of @var{choice} are:
++
++@itemize @bullet
++@item
++@samp{uninitialized} doesn't initialize any automatic variables.
++This is C and C++'s default.
++
++@item
++@samp{pattern} Initialize automatic variables with values which will likely
++transform logic bugs into crashes down the line, are easily recognized in a
++crash dump and without being values that programmers can rely on for useful
++program semantics.
++The current value is byte-repeatable pattern with byte "0xFE".
++The values used for pattern initialization might be changed in the future.
++
++@item
++@samp{zero} Initialize automatic variables with zeroes.
++@end itemize
++
++The default is @samp{uninitialized}.
++
++You can control this behavior for a specific variable by using the variable
++attribute @code{uninitialized} (@pxref{Variable Attributes}).
++
+ @item -fvect-cost-model=@var{model}
+ @opindex fvect-cost-model
+ Alter the cost model used for vectorization.  The @var{model} argument
+diff --git a/gcc/flag-types.h b/gcc/flag-types.h
+index 45a2338d5f6ab..5bd1f771c8bdd 100644
+--- a/gcc/flag-types.h
++++ b/gcc/flag-types.h
+@@ -281,6 +281,13 @@ enum vect_cost_model {
+   VECT_COST_MODEL_DEFAULT = 1
+ };
+ 
++/* Automatic variable initialization type.  */
++enum auto_init_type {
++  AUTO_INIT_UNINITIALIZED = 0,
++  AUTO_INIT_PATTERN = 1,
++  AUTO_INIT_ZERO = 2
++};
++
+ /* Different instrumentation modes.  */
+ enum sanitize_code {
+   /* AddressSanitizer.  */
+diff --git a/gcc/gimple-fold.c b/gcc/gimple-fold.c
+index 3f2c176cff6db..dd0e6b5daffa7 100644
+--- a/gcc/gimple-fold.c
++++ b/gcc/gimple-fold.c
+@@ -4518,12 +4518,14 @@ clear_padding_add_padding (clear_padding_struct *buf,
+     }
+ }
+ 
+-static void clear_padding_type (clear_padding_struct *, tree, HOST_WIDE_INT);
++static void clear_padding_type (clear_padding_struct *, tree,
++				HOST_WIDE_INT, bool);
+ 
+ /* Clear padding bits of union type TYPE.  */
+ 
+ static void
+-clear_padding_union (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
++clear_padding_union (clear_padding_struct *buf, tree type,
++		     HOST_WIDE_INT sz, bool for_auto_init)
+ {
+   clear_padding_struct *union_buf;
+   HOST_WIDE_INT start_off = 0, next_off = 0;
+@@ -4568,7 +4570,7 @@ clear_padding_union (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 	      continue;
+ 	    gcc_assert (TREE_CODE (TREE_TYPE (field)) == ARRAY_TYPE
+ 			&& !COMPLETE_TYPE_P (TREE_TYPE (field)));
+-	    if (!buf->clear_in_mask)
++	    if (!buf->clear_in_mask && !for_auto_init)
+ 	      error_at (buf->loc, "flexible array member %qD does not have "
+ 				  "well defined padding bits for %qs",
+ 			field, "__builtin_clear_padding");
+@@ -4579,7 +4581,7 @@ clear_padding_union (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 	union_buf->off = start_off;
+ 	union_buf->size = start_size;
+ 	memset (union_buf->buf, ~0, start_size);
+-	clear_padding_type (union_buf, TREE_TYPE (field), fldsz);
++	clear_padding_type (union_buf, TREE_TYPE (field), fldsz, for_auto_init);
+ 	clear_padding_add_padding (union_buf, sz - fldsz);
+ 	clear_padding_flush (union_buf, true);
+       }
+@@ -4649,7 +4651,8 @@ clear_padding_type_may_have_padding_p (tree type)
+      __builtin_clear_padding (buf.base);  */
+ 
+ static void
+-clear_padding_emit_loop (clear_padding_struct *buf, tree type, tree end)
++clear_padding_emit_loop (clear_padding_struct *buf, tree type,
++			 tree end, bool for_auto_init)
+ {
+   tree l1 = create_artificial_label (buf->loc);
+   tree l2 = create_artificial_label (buf->loc);
+@@ -4660,7 +4663,7 @@ clear_padding_emit_loop (clear_padding_struct *buf, tree type, tree end)
+   g = gimple_build_label (l1);
+   gimple_set_location (g, buf->loc);
+   gsi_insert_before (buf->gsi, g, GSI_SAME_STMT);
+-  clear_padding_type (buf, type, buf->sz);
++  clear_padding_type (buf, type, buf->sz, for_auto_init);
+   clear_padding_flush (buf, true);
+   g = gimple_build_assign (buf->base, POINTER_PLUS_EXPR, buf->base,
+ 			   size_int (buf->sz));
+@@ -4678,10 +4681,16 @@ clear_padding_emit_loop (clear_padding_struct *buf, tree type, tree end)
+ }
+ 
+ /* Clear padding bits for TYPE.  Called recursively from
+-   gimple_fold_builtin_clear_padding.  */
++   gimple_fold_builtin_clear_padding.  If FOR_AUTO_INIT is true,
++   the __builtin_clear_padding is not called by the end user,
++   instead, it's inserted by the compiler to initialize the
++   paddings of automatic variable.  Therefore, we should not
++   emit the error messages for flexible array members to confuse
++   the end user.  */
+ 
+ static void
+-clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
++clear_padding_type (clear_padding_struct *buf, tree type,
++		    HOST_WIDE_INT sz, bool for_auto_init)
+ {
+   switch (TREE_CODE (type))
+     {
+@@ -4765,7 +4774,7 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 		  continue;
+ 		gcc_assert (TREE_CODE (ftype) == ARRAY_TYPE
+ 			    && !COMPLETE_TYPE_P (ftype));
+-		if (!buf->clear_in_mask)
++		if (!buf->clear_in_mask && !for_auto_init)
+ 		  error_at (buf->loc, "flexible array member %qD does not "
+ 				      "have well defined padding bits for %qs",
+ 			    field, "__builtin_clear_padding");
+@@ -4781,7 +4790,8 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 		gcc_assert (pos >= 0 && fldsz >= 0 && pos >= cur_pos);
+ 		clear_padding_add_padding (buf, pos - cur_pos);
+ 		cur_pos = pos;
+-		clear_padding_type (buf, TREE_TYPE (field), fldsz);
++		clear_padding_type (buf, TREE_TYPE (field),
++				    fldsz, for_auto_init);
+ 		cur_pos += fldsz;
+ 	      }
+ 	  }
+@@ -4821,7 +4831,7 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 	  buf->align = TYPE_ALIGN (elttype);
+ 	  buf->off = 0;
+ 	  buf->size = 0;
+-	  clear_padding_emit_loop (buf, elttype, end);
++	  clear_padding_emit_loop (buf, elttype, end, for_auto_init);
+ 	  buf->base = base;
+ 	  buf->sz = prev_sz;
+ 	  buf->align = prev_align;
+@@ -4831,10 +4841,10 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 	  break;
+ 	}
+       for (HOST_WIDE_INT i = 0; i < nelts; i++)
+-	clear_padding_type (buf, TREE_TYPE (type), fldsz);
++	clear_padding_type (buf, TREE_TYPE (type), fldsz, for_auto_init);
+       break;
+     case UNION_TYPE:
+-      clear_padding_union (buf, type, sz);
++      clear_padding_union (buf, type, sz, for_auto_init);
+       break;
+     case REAL_TYPE:
+       gcc_assert ((size_t) sz <= clear_padding_unit);
+@@ -4858,14 +4868,14 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+       break;
+     case COMPLEX_TYPE:
+       fldsz = int_size_in_bytes (TREE_TYPE (type));
+-      clear_padding_type (buf, TREE_TYPE (type), fldsz);
+-      clear_padding_type (buf, TREE_TYPE (type), fldsz);
++      clear_padding_type (buf, TREE_TYPE (type), fldsz, for_auto_init);
++      clear_padding_type (buf, TREE_TYPE (type), fldsz, for_auto_init);
+       break;
+     case VECTOR_TYPE:
+       nelts = TYPE_VECTOR_SUBPARTS (type).to_constant ();
+       fldsz = int_size_in_bytes (TREE_TYPE (type));
+       for (HOST_WIDE_INT i = 0; i < nelts; i++)
+-	clear_padding_type (buf, TREE_TYPE (type), fldsz);
++	clear_padding_type (buf, TREE_TYPE (type), fldsz, for_auto_init);
+       break;
+     case NULLPTR_TYPE:
+       gcc_assert ((size_t) sz <= clear_padding_unit);
+@@ -4901,7 +4911,7 @@ clear_type_padding_in_mask (tree type, unsigned char *mask)
+   buf.sz = int_size_in_bytes (type);
+   buf.size = 0;
+   buf.union_ptr = mask;
+-  clear_padding_type (&buf, type, buf.sz);
++  clear_padding_type (&buf, type, buf.sz, false);
+   clear_padding_flush (&buf, true);
+ }
+ 
+@@ -4911,9 +4921,13 @@ static bool
+ gimple_fold_builtin_clear_padding (gimple_stmt_iterator *gsi)
+ {
+   gimple *stmt = gsi_stmt (*gsi);
+-  gcc_assert (gimple_call_num_args (stmt) == 2);
++  gcc_assert (gimple_call_num_args (stmt) == 3);
+   tree ptr = gimple_call_arg (stmt, 0);
+   tree typearg = gimple_call_arg (stmt, 1);
++  /* the 3rd argument of __builtin_clear_padding is to distinguish whether
++     this call is made by the user or by the compiler for automatic variable
++     initialization.  */
++  bool for_auto_init = (bool) TREE_INT_CST_LOW (gimple_call_arg (stmt, 2));
+   tree type = TREE_TYPE (TREE_TYPE (typearg));
+   location_t loc = gimple_location (stmt);
+   clear_padding_struct buf;
+@@ -4970,7 +4984,7 @@ gimple_fold_builtin_clear_padding (gimple_stmt_iterator *gsi)
+ 	  buf.sz = eltsz;
+ 	  buf.align = TYPE_ALIGN (elttype);
+ 	  buf.alias_type = build_pointer_type (elttype);
+-	  clear_padding_emit_loop (&buf, elttype, end);
++	  clear_padding_emit_loop (&buf, elttype, end, for_auto_init);
+ 	}
+     }
+   else
+@@ -4983,7 +4997,7 @@ gimple_fold_builtin_clear_padding (gimple_stmt_iterator *gsi)
+ 	  gsi_insert_before (gsi, g, GSI_SAME_STMT);
+ 	}
+       buf.alias_type = build_pointer_type (type);
+-      clear_padding_type (&buf, type, buf.sz);
++      clear_padding_type (&buf, type, buf.sz, for_auto_init);
+       clear_padding_flush (&buf, true);
+     }
+ 
+diff --git a/gcc/gimplify.c b/gcc/gimplify.c
+index 99d1c7fcce40a..3314f76cf3ff8 100644
+--- a/gcc/gimplify.c
++++ b/gcc/gimplify.c
+@@ -1743,6 +1743,94 @@ force_labels_r (tree *tp, int *walk_subtrees, void *data ATTRIBUTE_UNUSED)
+   return NULL_TREE;
+ }
+ 
++/* Generate an initialization to automatic variable DECL based on INIT_TYPE.
++   Build a call to internal const function DEFERRED_INIT:
++   1st argument: SIZE of the DECL;
++   2nd argument: INIT_TYPE;
++   3rd argument: IS_VLA, 0 NO, 1 YES;
++
++   as LHS = DEFERRED_INIT (SIZE of the DECL, INIT_TYPE, IS_VLA)
++   if IS_VLA is false, the LHS is the DECL itself,
++   if IS_VLA is true, the LHS is a MEM_REF whose address is the pointer
++   to this DECL.  */
++static void
++gimple_add_init_for_auto_var (tree decl,
++			      enum auto_init_type init_type,
++			      bool is_vla,
++			      gimple_seq *seq_p)
++{
++  gcc_assert (auto_var_p (decl));
++  gcc_assert (init_type > AUTO_INIT_UNINITIALIZED);
++  location_t loc = EXPR_LOCATION (decl);
++  tree decl_size = TYPE_SIZE_UNIT (TREE_TYPE (decl));
++
++  tree init_type_node
++    = build_int_cst (integer_type_node, (int) init_type);
++  tree is_vla_node
++    = build_int_cst (integer_type_node, (int) is_vla);
++
++  tree call = build_call_expr_internal_loc (loc, IFN_DEFERRED_INIT,
++		 			    TREE_TYPE (decl), 3,
++					    decl_size, init_type_node,
++					    is_vla_node);
++
++  gimplify_assign (decl, call, seq_p);
++}
++
++/* Generate padding initialization for automatic vairable DECL.
++   C guarantees that brace-init with fewer initializers than members
++   aggregate will initialize the rest of the aggregate as-if it were
++   static initialization.  In turn static initialization guarantees
++   that padding is initialized to zero. So, we always initialize paddings
++   to zeroes regardless INIT_TYPE.
++   To do the padding initialization, we insert a call to
++   __BUILTIN_CLEAR_PADDING (&decl, 0, for_auto_init = true).
++   Note, we add an additional dummy argument for __BUILTIN_CLEAR_PADDING,
++   'for_auto_init' to distinguish whether this call is for automatic
++   variable initialization or not.
++   */
++static void
++gimple_add_padding_init_for_auto_var (tree decl, bool is_vla,
++				      gimple_seq *seq_p)
++{
++  tree addr_of_decl = NULL_TREE;
++  bool for_auto_init = true;
++  tree fn = builtin_decl_explicit (BUILT_IN_CLEAR_PADDING);
++
++  if (is_vla)
++    {
++      /* The temporary address variable for this vla should be
++	 created in gimplify_vla_decl.  */
++      gcc_assert (DECL_HAS_VALUE_EXPR_P (decl));
++      gcc_assert (TREE_CODE (DECL_VALUE_EXPR (decl)) == INDIRECT_REF);
++      addr_of_decl = TREE_OPERAND (DECL_VALUE_EXPR (decl), 0);
++    }
++  else
++    {
++      mark_addressable (decl);
++      addr_of_decl = build_fold_addr_expr (decl);
++    }
++
++  gimple *call = gimple_build_call (fn,
++				    3, addr_of_decl,
++				    build_zero_cst (TREE_TYPE (addr_of_decl)),
++				    build_int_cst (integer_type_node,
++						   (int) for_auto_init));
++  gimplify_seq_add_stmt (seq_p, call);
++}
++
++/* Return true if the DECL need to be automaticly initialized by the
++   compiler.  */
++static bool
++is_var_need_auto_init (tree decl)
++{
++  if (auto_var_p (decl)
++      && (flag_auto_var_init > AUTO_INIT_UNINITIALIZED)
++      && (!lookup_attribute ("uninitialized", DECL_ATTRIBUTES (decl))))
++    return true;
++  return false;
++}
++
+ /* Gimplify a DECL_EXPR node *STMT_P by making any necessary allocation
+    and initialization explicit.  */
+ 
+@@ -1840,6 +1928,26 @@ gimplify_decl_expr (tree *stmt_p, gimple_seq *seq_p)
+ 	       as they may contain a label address.  */
+ 	    walk_tree (&init, force_labels_r, NULL, NULL);
+ 	}
++      /* When there is no explicit initializer, if the user requested,
++	 We should insert an artifical initializer for this automatic
++	 variable.  */
++      else if (is_var_need_auto_init (decl))
++	{
++	  gimple_add_init_for_auto_var (decl,
++					flag_auto_var_init,
++					is_vla,
++					seq_p);
++	  /* The expanding of a call to the above .DEFERRED_INIT will apply
++	     block initialization to the whole space covered by this variable.
++	     As a result, all the paddings will be initialized to zeroes
++	     for zero initialization and 0xFE byte-repeatable patterns for
++	     pattern initialization.
++	     In order to make the paddings as zeroes for pattern init, We
++	     should add a call to __builtin_clear_padding to clear the
++	     paddings to zero in compatiple with CLANG.  */
++	  if (flag_auto_var_init == AUTO_INIT_PATTERN)
++	    gimple_add_padding_init_for_auto_var (decl, is_vla, seq_p);
++	}
+     }
+ 
+   return GS_ALL_DONE;
+@@ -3411,11 +3519,15 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
+ 	  {
+ 	    /* Remember the original type of the argument in an internal
+ 	       dummy second argument, as in GIMPLE pointer conversions are
+-	       useless.  */
++	       useless. also mark this call as not for automatic initialization
++	       in the internal dummy third argument.  */
+ 	    p = CALL_EXPR_ARG (*expr_p, 0);
++	    bool for_auto_init = false;
+ 	    *expr_p
+-	      = build_call_expr_loc (EXPR_LOCATION (*expr_p), fndecl, 2, p,
+-				     build_zero_cst (TREE_TYPE (p)));
++	      = build_call_expr_loc (EXPR_LOCATION (*expr_p), fndecl, 3, p,
++				     build_zero_cst (TREE_TYPE (p)),
++				     build_int_cst (integer_type_node,
++						    (int) for_auto_init));
+ 	    return GS_OK;
+ 	  }
+ 	break;
+@@ -4872,6 +4984,9 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
+   tree object, ctor, type;
+   enum gimplify_status ret;
+   vec<constructor_elt, va_gc> *elts;
++  bool cleared = false;
++  bool is_empty_ctor = false;
++  bool is_init_expr = (TREE_CODE (*expr_p) == INIT_EXPR);
+ 
+   gcc_assert (TREE_CODE (TREE_OPERAND (*expr_p, 1)) == CONSTRUCTOR);
+ 
+@@ -4914,7 +5029,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
+ 	struct gimplify_init_ctor_preeval_data preeval_data;
+ 	HOST_WIDE_INT num_ctor_elements, num_nonzero_elements;
+ 	HOST_WIDE_INT num_unique_nonzero_elements;
+-	bool cleared, complete_p, valid_const_initializer;
++	bool complete_p, valid_const_initializer;
+ 
+ 	/* Aggregate types must lower constructors to initialization of
+ 	   individual elements.  The exception is that a CONSTRUCTOR node
+@@ -4923,6 +5038,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
+ 	  {
+ 	    if (notify_temp_creation)
+ 	      return GS_OK;
++	    is_empty_ctor = true;
+ 	    break;
+ 	  }
+ 
+@@ -5248,13 +5364,28 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
+   if (want_value)
+     {
+       *expr_p = object;
+-      return GS_OK;
++      ret = GS_OK;
+     }
+   else
+     {
+       *expr_p = NULL;
+-      return GS_ALL_DONE;
+-    }
++      ret = GS_ALL_DONE;
++    }
++
++  /* If the user requests to initialize automatic variables, we
++     should initialize paddings inside the variable.  Add a call to
++     __BUILTIN_CLEAR_PADDING (&object, 0, for_auto_init = true) to
++     initialize paddings of object always to zero regardless of
++     INIT_TYPE.  Note, we will not insert this call if the aggregate
++     variable has be completely cleared already or it's initialized
++     with an empty constructor.  */
++  if (is_init_expr
++      && ((AGGREGATE_TYPE_P (type) && !cleared && !is_empty_ctor)
++	  || !AGGREGATE_TYPE_P (type))
++      && is_var_need_auto_init (object))
++    gimple_add_padding_init_for_auto_var (object, false, pre_p);
++
++  return ret;
+ }
+ 
+ /* Given a pointer value OP0, return a simplified version of an
+@@ -5395,10 +5526,12 @@ gimplify_modify_expr_rhs (tree *expr_p, tree *from_p, tree *to_p,
+ 	     crack at this before we break it down.  */
+ 	  if (ret != GS_UNHANDLED)
+ 	    break;
++
+ 	  /* If we're initializing from a CONSTRUCTOR, break this into
+ 	     individual MODIFY_EXPRs.  */
+-	  return gimplify_init_constructor (expr_p, pre_p, post_p, want_value,
+-					    false);
++	  ret = gimplify_init_constructor (expr_p, pre_p, post_p, want_value,
++					   false);
++	  return ret;
+ 
+ 	case COND_EXPR:
+ 	  /* If we're assigning to a non-register type, push the assignment
+diff --git a/gcc/internal-fn.c b/gcc/internal-fn.c
+index 1360a00f0b93a..ada2a820ff157 100644
+@@ -52,6 +52,9 @@ along with GCC; see the file COPYING3.  If not see
+ #include "explow.h"
+ #include "rtl-iter.h"
+ 
++/* For lang_hooks.types.type_for_mode.  */
++#include "langhooks.h"
++
+ /* The names of each internal function, indexed by function number.  */
+ const char *const internal_fn_name_array[] = {
+ #define DEF_INTERNAL_FN(CODE, FLAGS, FNSPEC) #CODE,
+@@ -2975,6 +2978,102 @@ expand_UNIQUE (internal_fn, gcall *stmt)
+     emit_insn (pattern);
+ }
+ 
++/* Expand the IFN_DEFERRED_INIT function:
++   LHS = DEFERRED_INIT (SIZE of the DECL, INIT_TYPE, IS_VLA);
++
++   if IS_VLA is false, the LHS is the DECL itself,
++   if IS_VLA is true, the LHS is a MEM_REF whose address is the pointer
++   to this DECL.
++
++   Initialize the LHS with zero/pattern according to its second argument
++   INIT_TYPE:
++   if INIT_TYPE is AUTO_INIT_ZERO, use zeroes to initialize;
++   if INIT_TYPE is AUTO_INIT_PATTERN, use 0xFE byte-repeatable pattern
++     to initialize;
++   The LHS variable is initialized including paddings.
++   The reasons to choose 0xFE for pattern initialization are:
++     1. It is a non-canonical virtual address on x86_64, and at the
++	high end of the i386 kernel address space.
++     2. It is a very large float value (-1.694739530317379e+38).
++     3. It is also an unusual number for integers.  */
++#define INIT_PATTERN_VALUE  0xFE
++static void
++expand_DEFERRED_INIT (internal_fn, gcall *stmt)
++{
++  tree lhs = gimple_call_lhs (stmt);
++  tree var_size = gimple_call_arg (stmt, 0);
++  enum auto_init_type init_type
++    = (enum auto_init_type) TREE_INT_CST_LOW (gimple_call_arg (stmt, 1));
++  bool is_vla = (bool) TREE_INT_CST_LOW (gimple_call_arg (stmt, 2));
++  bool reg_lhs = true;
++
++  tree var_type = TREE_TYPE (lhs);
++  gcc_assert (init_type > AUTO_INIT_UNINITIALIZED);
++
++  if (DECL_P (lhs))
++    {
++      rtx tem = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
++      reg_lhs = !MEM_P (tem);
++    }
++  else if (TREE_CODE (lhs) == SSA_NAME)
++    reg_lhs = true;
++  else
++    {
++      gcc_assert (is_vla);
++      reg_lhs = false;
++    }
++
++
++  if (!reg_lhs)
++    {
++    /* If this is a VLA or the variable is not in register,
++       expand to a memset to initialize it.  */
++
++      mark_addressable (lhs);
++      tree var_addr = build_fold_addr_expr (lhs);
++
++      tree value = (init_type == AUTO_INIT_PATTERN) ?
++		    build_int_cst (integer_type_node,
++				   INIT_PATTERN_VALUE) :
++		    integer_zero_node;
++      tree m_call = build_call_expr (builtin_decl_implicit (BUILT_IN_MEMSET),
++				     3, var_addr, value, var_size);
++      /* Expand this memset call.  */
++      expand_builtin_memset (m_call, NULL_RTX, TYPE_MODE (var_type));
++    }
++  else
++    {
++    /* If this variable is in a register, use expand_assignment might
++       generate better code.  */
++      tree init = build_zero_cst (var_type);
++      unsigned HOST_WIDE_INT total_bytes
++	= tree_to_uhwi (TYPE_SIZE_UNIT (var_type));
++
++      if (init_type == AUTO_INIT_PATTERN)
++	{
++	  tree alt_type = NULL_TREE;
++	  if (!can_native_interpret_type_p (var_type))
++	    {
++	      alt_type
++		= lang_hooks.types.type_for_mode (TYPE_MODE (var_type),
++						  TYPE_UNSIGNED (var_type));
++	      gcc_assert (can_native_interpret_type_p (alt_type));
++	    }
++
++	  unsigned char *buf = (unsigned char *) xmalloc (total_bytes);
++	  memset (buf, INIT_PATTERN_VALUE, total_bytes);
++	  init = native_interpret_expr (alt_type ? alt_type : var_type,
++					buf, total_bytes);
++	  gcc_assert (init);
++
++	  if (alt_type)
++	    init = build1 (VIEW_CONVERT_EXPR, var_type, init);
++	}
++
++      expand_assignment (lhs, init, false);
++    }
++}
++
+ /* The size of an OpenACC compute dimension.  */
+ 
+ static void
+diff --git a/gcc/internal-fn.def b/gcc/internal-fn.def
+index 3ac9ae68b2a6e..88169ef4656d8 100644
+--- a/gcc/internal-fn.def
++++ b/gcc/internal-fn.def
+@@ -360,6 +360,10 @@ DEF_INTERNAL_FN (VEC_CONVERT, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
+ DEF_INTERNAL_FN (UNIQUE, ECF_NOTHROW, NULL)
+ DEF_INTERNAL_FN (PHI, 0, NULL)
+ 
++/* A function to represent an artifical initialization to an uninitialized
++   automatic variable.  */
++DEF_INTERNAL_FN (DEFERRED_INIT, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
++
+ /* DIM_SIZE and DIM_POS return the size of a particular compute
+    dimension and the executing thread's position within that
+    dimension.  DIM_POS is pure (and not const) so that it isn't
+diff --git a/gcc/testsuite/c-c++-common/auto-init-1.c b/gcc/testsuite/c-c++-common/auto-init-1.c
+new file mode 100644
+index 0000000000000..8b8ba3dd7e8d4
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-1.c
+@@ -0,0 +1,39 @@
++/* Verify zero initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(1, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(2, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(4, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp4 = .DEFERRED_INIT \\(4, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp5 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp6 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp7 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp8 = .DEFERRED_INIT \\(1, 2, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-10.c b/gcc/testsuite/c-c++-common/auto-init-10.c
+new file mode 100644
+index 0000000000000..f35205f2a300b
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-10.c
+@@ -0,0 +1,22 @@
++/* Verify the variable attribute "uninitialized".  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++extern void bar (char, long long *) __attribute__ ((uninitialized)); /* { dg-warning "'uninitialized' attribute ignored because" "is not a variable" } */
++extern int __attribute__ ((uninitialized)) boo1; /* { dg-warning "'uninitialized' attribute ignored because 'boo1' is not a local variable" } */
++static int __attribute__ ((uninitialized)) boo2; /* { dg-warning "'uninitialized' attribute ignored because 'boo2' is not a local variable" } */
++
++
++void foo()
++{
++  short temp1;
++  long long __attribute__ ((uninitialized)) temp2[10];
++  static int __attribute__ ((uninitialized)) boo3; /* { dg-warning "'uninitialized' attribute ignored because 'boo3' is not a local variable" } */
++
++
++  bar (temp1, temp2);
++  return;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(2, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump-not "temp2 = .DEFERRED_INIT \\(" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-11.c b/gcc/testsuite/c-c++-common/auto-init-11.c
+new file mode 100644
+index 0000000000000..a2d66908d83ef
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-11.c
+@@ -0,0 +1,14 @@
++/* Verify zero initialization for VLA automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++extern void bar (int);
++
++void foo(int n)
++{
++  int arr[n];
++  bar (arr[2]);
++  return;
++}
++
++/* { dg-final { scan-tree-dump ".DEFERRED_INIT \\(D.\\d*, 2, 1\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-12.c b/gcc/testsuite/c-c++-common/auto-init-12.c
+new file mode 100644
+index 0000000000000..f05d743fda024
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-12.c
+@@ -0,0 +1,14 @@
++/* Verify zero initialization for VLA automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++extern void bar (int);
++
++void foo(int n)
++{
++  int arr[n];
++  bar (arr[2]);
++  return;
++}
++
++/* { dg-final { scan-tree-dump ".DEFERRED_INIT \\(D.\\d*, 1, 1\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-13.c b/gcc/testsuite/c-c++-common/auto-init-13.c
+new file mode 100644
+index 0000000000000..b0c0365b288a7
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-13.c
+@@ -0,0 +1,23 @@
++/* Verify the auto initialization of structure or union with a flexible array
++   member.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++struct a {
++  int b;
++  int array[];
++};
++union tar {
++  struct a bar;
++  char buf;
++};
++
++int foo()
++{
++  struct a d;
++  union tar var;
++  return d.b + var.bar.b;
++}
++
++/* { dg-final { scan-tree-dump "d = .DEFERRED_INIT \\(4, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "var = .DEFERRED_INIT \\(4, 1, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-14.c b/gcc/testsuite/c-c++-common/auto-init-14.c
+new file mode 100644
+index 0000000000000..986bb19faaf0f
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-14.c
+@@ -0,0 +1,23 @@
++/* Verify the auto initialization of structure or union with a flexible array
++   member.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++struct a {
++  int b;
++  int array[];
++};
++union tar {
++  struct a bar;
++  char buf;
++};
++
++int foo()
++{
++  struct a d;
++  union tar var;
++  return d.b + var.bar.b;
++}
++
++/* { dg-final { scan-tree-dump "d = .DEFERRED_INIT \\(4, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "var = .DEFERRED_INIT \\(4, 2, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-15.c b/gcc/testsuite/c-c++-common/auto-init-15.c
+new file mode 100644
+index 0000000000000..aa9d7fab68a69
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-15.c
+@@ -0,0 +1,13 @@
++/* Verify the auto initialization of nested VLA.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++void g(void *);
++
++void foo(int a)
++{
++  int x[a][a];
++  g(x);
++}
++
++/* { dg-final { scan-tree-dump ".DEFERRED_INIT \\(D.\\d*, 2, 1\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-16.c b/gcc/testsuite/c-c++-common/auto-init-16.c
+new file mode 100644
+index 0000000000000..86493eef9e47f
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-16.c
+@@ -0,0 +1,13 @@
++/* Verify the auto initialization of nested VLA.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++void g(void *);
++
++void foo(int a)
++{
++  int x[a][a];
++  g(x);
++}
++
++/* { dg-final { scan-tree-dump ".DEFERRED_INIT \\(D.\\d*, 1, 1\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-2.c b/gcc/testsuite/c-c++-common/auto-init-2.c
+new file mode 100644
+index 0000000000000..71955b54ba031
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-2.c
+@@ -0,0 +1,39 @@
++/* Verify pattern initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(1, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(2, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(4, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp4 = .DEFERRED_INIT \\(4, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp5 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp6 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp7 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp8 = .DEFERRED_INIT \\(1, 1, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-3.c b/gcc/testsuite/c-c++-common/auto-init-3.c
+new file mode 100644
+index 0000000000000..312275666381d
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-3.c
+@@ -0,0 +1,19 @@
++/* Verify zero initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++  
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(4, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(16, 2, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-4.c b/gcc/testsuite/c-c++-common/auto-init-4.c
+new file mode 100644
+index 0000000000000..15a431726dcd9
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-4.c
+@@ -0,0 +1,19 @@
++/* Verify pattern initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++  
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(4, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(16, 1, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-5.c b/gcc/testsuite/c-c++-common/auto-init-5.c
+new file mode 100644
+index 0000000000000..54f90bc890b5f
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-5.c
+@@ -0,0 +1,21 @@
++/* Verify zero initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(16, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(32, 2, 0\\)" "gimple" } } */
++
+diff --git a/gcc/testsuite/c-c++-common/auto-init-6.c b/gcc/testsuite/c-c++-common/auto-init-6.c
+new file mode 100644
+index 0000000000000..4124a2b183aad
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-6.c
+@@ -0,0 +1,21 @@
++/* Verify pattern initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(16, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(32, 1, 0\\)" "gimple" } } */
++
+diff --git a/gcc/testsuite/c-c++-common/auto-init-7.c b/gcc/testsuite/c-c++-common/auto-init-7.c
+new file mode 100644
+index 0000000000000..19986969a8f70
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-7.c
+@@ -0,0 +1,35 @@
++/* Verify zero initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(12, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(24, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(28, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp4 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-8.c b/gcc/testsuite/c-c++-common/auto-init-8.c
+new file mode 100644
+index 0000000000000..9778e911e3ad6
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-8.c
+@@ -0,0 +1,35 @@
++/* Verify pattern initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(12, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp2 = .DEFERRED_INIT \\(24, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp3 = .DEFERRED_INIT \\(28, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "temp4 = .DEFERRED_INIT \\(8, 1, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-9.c b/gcc/testsuite/c-c++-common/auto-init-9.c
+new file mode 100644
+index 0000000000000..29acb7f86691d
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-9.c
+@@ -0,0 +1,20 @@
++/* Verify the variable attribute "uninitialized".  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-tree-gimple" } */
++
++extern void bar (char, long long *) __attribute__ ((uninitialized)); /* { dg-warning "'uninitialized' attribute ignored because" "is not a variable" } */
++extern int __attribute__ ((uninitialized)) boo1; /* { dg-warning "'uninitialized' attribute ignored because 'boo1' is not a local variable" } */
++static int __attribute__ ((uninitialized)) boo2; /* { dg-warning "'uninitialized' attribute ignored because 'boo2' is not a local variable" } */
++
++void foo()
++{
++  short temp1;
++  long long __attribute__ ((uninitialized)) temp2[10];
++  static int __attribute__ ((uninitialized)) boo3; /* { dg-warning "'uninitialized' attribute ignored because 'boo3' is not a local variable" } */
++
++  bar (temp1, temp2);
++  return;
++}
++
++/* { dg-final { scan-tree-dump "temp1 = .DEFERRED_INIT \\(2, 2, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump-not "temp2 = .DEFERRED_INIT \\(8, 2, 0\\)" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-esra.c b/gcc/testsuite/c-c++-common/auto-init-esra.c
+new file mode 100644
+index 0000000000000..77ec02355df43
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-esra.c
+@@ -0,0 +1,35 @@
++/* Verify the strength reduction adjustment for -ftrivial-auto-var-init.  */ 
++/* { dg-do compile } */
++/* { dg-options "-O2 -ftrivial-auto-var-init=zero -fdump-tree-gimple -fdump-tree-esra" } */
++
++
++typedef double VECTOR[3];
++
++enum
++{
++ X = 0,
++ Y = 1,
++ Z = 2,
++ T = 3
++};
++
++void Assign_Vector(VECTOR d, VECTOR s)
++{
++ d[X] = s[X];
++ d[Y] = s[Y];
++ d[Z] = s[Z];
++}
++
++void VCross(VECTOR a, const VECTOR b, const VECTOR c)
++{
++ VECTOR tmp;
++
++ tmp[X] = b[Y] * c[Z] - b[Z] * c[Y];
++ tmp[Y] = b[Z] * c[X] - b[X] * c[Z];
++ tmp[Z] = b[X] * c[Y] - b[Y] * c[X];
++
++ Assign_Vector(a, tmp);
++}
++
++/* { dg-final { scan-tree-dump-times "tmp = .DEFERRED_INIT \\(24, 2, 0\\)" 1 "gimple" } } */
++/* { dg-final { scan-tree-dump-times ".DEFERRED_INIT \\(8, 2, 0\\)" 3 "esra" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-padding-1.c b/gcc/testsuite/c-c++-common/auto-init-padding-1.c
+new file mode 100644
+index 0000000000000..97f78ee7d56ac
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-padding-1.c
+@@ -0,0 +1,23 @@
++/* Verify the padding initialization for pattern initialization, we always emit
++ * a call to __builtin_clear_padding to initialize the paddings to zero.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-tree-gimple" } */
++
++
++struct test_small_hole {
++  int one;
++  char two;
++  /* 3 byte padding hole here. */
++  int three;
++  unsigned long four;
++};
++
++extern void g (struct test_small_hole);
++void foo(int a)
++{
++  struct test_small_hole s; 
++  g(s);
++}
++
++/* { dg-final { scan-tree-dump ".DEFERRED_INIT \\(24, 1, 0\\)" "gimple" } } */
++/* { dg-final { scan-tree-dump "__builtin_clear_padding" "gimple" } } */
+diff --git a/gcc/testsuite/c-c++-common/auto-init-padding-2.c b/gcc/testsuite/c-c++-common/auto-init-padding-2.c
+new file mode 100644
+index 0000000000000..e2b50dc5ae8e1
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-padding-2.c
+@@ -0,0 +1,114 @@
++/* To test that the compiler can fill all the paddings to zeroes for the 
++   structures when the auto variable is partially initialized,  fully 
++   initialized, or not initialized for -ftrivial-auto-var-init=zero.  */
++/* { dg-do run} */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++/* Structure with no padding. */
++struct test_packed {
++  unsigned long one;
++  unsigned long two;
++  unsigned long three;
++  unsigned long four;
++} p1;
++
++/* Simple structure with padding likely to be covered by compiler. */
++struct test_small_hole {
++  unsigned long one;
++  char two;
++  /* 3 byte padding hole here. */
++  int three;
++  unsigned long four;
++} sh1;
++
++/* Try to trigger unhandled padding in a structure. */
++struct test_aligned {
++  unsigned int internal1;
++  unsigned long long internal2;
++} __attribute__((__aligned__(64)));
++
++struct test_aligned a1;
++
++struct test_big_hole {
++  unsigned char one;
++  unsigned char two;
++  unsigned char three;
++  /* 61 byte padding hole here. */
++  struct test_aligned four;
++} __attribute__((__aligned__(64))); 
++
++struct test_big_hole bh1;
++
++struct test_trailing_hole {
++  char *one;
++  char *two;
++  char *three;
++  char four;
++  /* "sizeof(unsigned long) - 1" byte padding hole here. */
++} th1;
++
++__attribute__((noipa)) void
++foo (struct test_packed *p, struct test_small_hole *sh, struct test_aligned *a,
++     struct test_big_hole *bh, struct test_trailing_hole *th)
++{
++  p->one = 1; p->two = 2; p->three = 3; p->four = 4;
++  sh->one = 11; sh->two = 12; sh->three = 13; sh->four = 14;
++  a->internal1 = 21; a->internal2 = 22;
++  bh->one = 31; bh->two = 32; bh->three = 33;
++  bh->four.internal1 = 34; bh->four.internal2 = 35; 
++  th->one = 0; th->two = 0; th->three = 0; th->four = 44;
++}
++
++int main ()
++{
++  struct test_packed p2;
++  struct test_small_hole sh2;
++  struct test_aligned a2;
++  struct test_big_hole bh2;
++  struct test_trailing_hole th2;
++
++  struct test_packed p3 = {.one = 1};
++  struct test_small_hole sh3 = {.two = 12};
++  struct test_aligned a3 = {.internal1 = 21};
++  struct test_big_hole bh3 = {.one = 31};
++  struct test_trailing_hole th3 = {.three = 0};
++
++  struct test_packed p4 = {.one = 1, .two = 2, .three = 3, .four = 4};
++  struct test_small_hole sh4 = {.one = 11, .two = 12, .three = 13, .four = 14};
++  struct test_aligned a4 = {.internal1 = 21, .internal2 = 22};
++  struct test_big_hole bh4 = {.one = 31, .two = 32, .three = 33};
++  struct test_trailing_hole th4 = {.one = 0, .two = 0, .three = 0, .four = 44};
++
++  foo (&p1, &sh1, &a1, &bh1, &th1);
++  foo (&p2, &sh2, &a2, &bh2, &th2);
++  foo (&p3, &sh3, &a3, &bh3, &th3);
++  bh4.four.internal1 = 34; bh4.four.internal2 = 35;
++
++  __builtin_clear_padding (&p1);
++  __builtin_clear_padding (&sh1);
++  __builtin_clear_padding (&a1);
++  __builtin_clear_padding (&bh1);
++  __builtin_clear_padding (&th1);
++
++  if (__builtin_memcmp (&p1, &p2, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh2, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a2, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh2, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th2, sizeof (th1)))
++    __builtin_abort ();
++  if (__builtin_memcmp (&p1, &p3, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh3, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a3, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh3, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th3, sizeof (th1)))
++    __builtin_abort ();
++  if (__builtin_memcmp (&p1, &p4, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh4, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a4, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh4, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th4, sizeof (th1)))
++    __builtin_abort ();
++
++
++  return 0;
++}
+diff --git a/gcc/testsuite/c-c++-common/auto-init-padding-3.c b/gcc/testsuite/c-c++-common/auto-init-padding-3.c
+new file mode 100644
+index 0000000000000..e2c48c002c956
+--- /dev/null
++++ b/gcc/testsuite/c-c++-common/auto-init-padding-3.c
+@@ -0,0 +1,114 @@
++/* To test that the compiler can fill all the paddings to zeroes for the 
++   structures when the auto variable is partially initialized,  fully 
++   initialized, or not initialized for -ftrivial-auto-var-init=pattern.  */
++/* { dg-do run} */
++/* { dg-options "-ftrivial-auto-var-init=pattern" } */
++
++/* Structure with no padding. */
++struct test_packed {
++  unsigned long one;
++  unsigned long two;
++  unsigned long three;
++  unsigned long four;
++} p1;
++
++/* Simple structure with padding likely to be covered by compiler. */
++struct test_small_hole {
++  unsigned long one;
++  char two;
++  /* 3 byte padding hole here. */
++  int three;
++  unsigned long four;
++} sh1;
++
++/* Try to trigger unhandled padding in a structure. */
++struct test_aligned {
++  unsigned int internal1;
++  unsigned long long internal2;
++} __attribute__((__aligned__(64)));
++
++struct test_aligned a1;
++
++struct test_big_hole {
++  unsigned char one;
++  unsigned char two;
++  unsigned char three;
++  /* 61 byte padding hole here. */
++  struct test_aligned four;
++} __attribute__((__aligned__(64))); 
++
++struct test_big_hole bh1;
++
++struct test_trailing_hole {
++  char *one;
++  char *two;
++  char *three;
++  char four;
++  /* "sizeof(unsigned long) - 1" byte padding hole here. */
++} th1;
++
++__attribute__((noipa)) void
++foo (struct test_packed *p, struct test_small_hole *sh, struct test_aligned *a,
++     struct test_big_hole *bh, struct test_trailing_hole *th)
++{
++  p->one = 1; p->two = 2; p->three = 3; p->four = 4;
++  sh->one = 11; sh->two = 12; sh->three = 13; sh->four = 14;
++  a->internal1 = 21; a->internal2 = 22;
++  bh->one = 31; bh->two = 32; bh->three = 33;
++  bh->four.internal1 = 34; bh->four.internal2 = 35; 
++  th->one = 0; th->two = 0; th->three = 0; th->four = 44;
++}
++
++int main ()
++{
++  struct test_packed p2;
++  struct test_small_hole sh2;
++  struct test_aligned a2;
++  struct test_big_hole bh2;
++  struct test_trailing_hole th2;
++
++  struct test_packed p3 = {.one = 1};
++  struct test_small_hole sh3 = {.two = 12};
++  struct test_aligned a3 = {.internal1 = 21};
++  struct test_big_hole bh3 = {.one = 31};
++  struct test_trailing_hole th3 = {.three = 0};
++
++  struct test_packed p4 = {.one = 1, .two = 2, .three = 3, .four = 4};
++  struct test_small_hole sh4 = {.one = 11, .two = 12, .three = 13, .four = 14};
++  struct test_aligned a4 = {.internal1 = 21, .internal2 = 22};
++  struct test_big_hole bh4 = {.one = 31, .two = 32, .three = 33};
++  struct test_trailing_hole th4 = {.one = 0, .two = 0, .three = 0, .four = 44};
++
++  foo (&p1, &sh1, &a1, &bh1, &th1);
++  foo (&p2, &sh2, &a2, &bh2, &th2);
++  foo (&p3, &sh3, &a3, &bh3, &th3);
++  bh4.four.internal1 = 34; bh4.four.internal2 = 35;
++
++  __builtin_clear_padding (&p1);
++  __builtin_clear_padding (&sh1);
++  __builtin_clear_padding (&a1);
++  __builtin_clear_padding (&bh1);
++  __builtin_clear_padding (&th1);
++
++  if (__builtin_memcmp (&p1, &p2, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh2, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a2, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh2, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th2, sizeof (th1)))
++    __builtin_abort ();
++  if (__builtin_memcmp (&p1, &p3, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh3, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a3, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh3, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th3, sizeof (th1)))
++    __builtin_abort ();
++  if (__builtin_memcmp (&p1, &p4, sizeof (p1))
++      || __builtin_memcmp (&sh1, &sh4, sizeof (sh1))
++      || __builtin_memcmp (&a1, &a4, sizeof (a1))
++      || __builtin_memcmp (&bh1, &bh4, sizeof (bh1))
++      || __builtin_memcmp (&th1, &th4, sizeof (th1)))
++    __builtin_abort ();
++
++
++  return 0;
++}
+diff --git a/gcc/testsuite/g++.dg/auto-init-uninit-pred-1_a.C b/gcc/testsuite/g++.dg/auto-init-uninit-pred-1_a.C
+new file mode 100644
+index 0000000000000..43002235a53c5
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/auto-init-uninit-pred-1_a.C
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-Wuninitialized -O2 -ftrivial-auto-var-init=zero" } */
++#include "uninit-pred-1_a.C"
+diff --git a/gcc/testsuite/g++.dg/auto-init-uninit-pred-2_a.C b/gcc/testsuite/g++.dg/auto-init-uninit-pred-2_a.C
+new file mode 100644
+index 0000000000000..5551060b12252
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/auto-init-uninit-pred-2_a.C
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-Wuninitialized -O2 -ftrivial-auto-var-init=zero" } */
++#include "uninit-pred-2_a.C"
+diff --git a/gcc/testsuite/g++.dg/auto-init-uninit-pred-3_a.C b/gcc/testsuite/g++.dg/auto-init-uninit-pred-3_a.C
+new file mode 100644
+index 0000000000000..d6ab4f0b6beb6
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/auto-init-uninit-pred-3_a.C
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-Wuninitialized -O2 -ftrivial-auto-var-init=zero" } */
++#include "uninit-pred-3_a.C"
+diff --git a/gcc/testsuite/g++.dg/auto-init-uninit-pred-4.C b/gcc/testsuite/g++.dg/auto-init-uninit-pred-4.C
+new file mode 100644
+index 0000000000000..4747d283d31cb
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/auto-init-uninit-pred-4.C
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-Wuninitialized -Og -ftrivial-auto-var-init=zero" } */
++#include "uninit-pred-4.C"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-sra-1.c b/gcc/testsuite/gcc.dg/auto-init-sra-1.c
+new file mode 100644
+index 0000000000000..88fd66678f290
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-sra-1.c
+@@ -0,0 +1,24 @@
++/* Verify that SRA total scalarization will not be confused by padding
++   and also not confused by auto initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-O1 --param sra-max-scalarization-size-Ospeed=16 -fdump-tree-release_ssa -ftrivial-auto-var-init=zero" } */
++
++struct S
++{
++  int i;
++  unsigned short f1;
++  char f2;
++  unsigned short f3, f4;
++};
++
++
++int foo (struct S *p)
++{
++  struct S l;
++
++  l = *p;
++  l.i++;
++  *p = l;
++}
++
++/* { dg-final { scan-tree-dump-times "l;" 0 "release_ssa" } } */
+diff --git a/gcc/testsuite/gcc.dg/auto-init-sra-2.c b/gcc/testsuite/gcc.dg/auto-init-sra-2.c
+new file mode 100644
+index 0000000000000..d260f5ae934ed
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-sra-2.c
+@@ -0,0 +1,24 @@
++/* Verify that SRA total scalarization will not be confused by padding
++   and also not confused by auto initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-O1 --param sra-max-scalarization-size-Ospeed=16 -fdump-tree-release_ssa -ftrivial-auto-var-init=pattern" } */
++
++struct S
++{
++  int i;
++  unsigned short f1;
++  char f2;
++  unsigned short f3, f4;
++};
++
++
++int foo (struct S *p)
++{
++  struct S l;
++
++  l = *p;
++  l.i++;
++  *p = l;
++}
++
++/* { dg-final { scan-tree-dump-times "l;" 0 "release_ssa" } } */
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-1.c b/gcc/testsuite/gcc.dg/auto-init-uninit-1.c
+new file mode 100644
+index 0000000000000..502db591222a8
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-1.c
+@@ -0,0 +1,5 @@
++/* Spurious uninitialized variable warnings, case 1.
++   Taken from cppfiles.c (merge_include_chains) */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-1.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-12.c b/gcc/testsuite/gcc.dg/auto-init-uninit-12.c
+new file mode 100644
+index 0000000000000..65da110f55668
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-12.c
+@@ -0,0 +1,4 @@
++/* PR 23497 */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-12.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-13.c b/gcc/testsuite/gcc.dg/auto-init-uninit-13.c
+new file mode 100644
+index 0000000000000..87dd8b587e00f
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-13.c
+@@ -0,0 +1,10 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++typedef _Complex float C;
++C foo()
++{
++  C f;
++  __imag__ f = 0;
++  return f;	/* { dg-warning "is used" "unconditional" } */
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-14.c b/gcc/testsuite/gcc.dg/auto-init-uninit-14.c
+new file mode 100644
+index 0000000000000..9ffe00a67e50a
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-14.c
+@@ -0,0 +1,4 @@
++/* PR 24931 */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-14.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-15.c b/gcc/testsuite/gcc.dg/auto-init-uninit-15.c
+new file mode 100644
+index 0000000000000..121f0cff274a3
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-15.c
+@@ -0,0 +1,26 @@
++/* PR tree-optimization/17506
++   We issue an uninitialized variable warning at a wrong location at
++   line 11, which is very confusing.  Make sure we print out a note to
++   make it less confusing.  (not xfailed alternative)
++   But it is of course ok if we warn in bar about uninitialized use
++   of j.  (not xfailed alternative)  */
++/* { dg-do compile } */
++/* { dg-options "-O1 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++inline int
++foo (int i)
++{
++  if (i) /* { dg-warning "used uninitialized" } */
++    return 1;
++  return 0;
++}
++
++void baz (void);
++
++void
++bar (void)
++{
++  int j; /* { dg-message "note: 'j' was declared here" "" } */
++  for (; foo (j); ++j)  /* { dg-warning "'j' is used uninitialized" "" { xfail *-*-* } } */
++    baz ();
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-16.c b/gcc/testsuite/gcc.dg/auto-init-uninit-16.c
+new file mode 100644
+index 0000000000000..38e19502a679e
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-16.c
+@@ -0,0 +1,25 @@
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++/* -ftrivial-auto-var-init will make the uninitialized warning for address
++   taken auto var going away, FIXME later.  */
++
++int foo, bar;
++
++static
++void decode_reloc(int reloc, int *is_alt)
++{
++  if (reloc >= 20)
++      *is_alt = 1;
++  else if (reloc >= 10)
++      *is_alt = 0;
++}
++
++void testfunc()
++{
++  int alt_reloc;
++
++  decode_reloc(foo, &alt_reloc);
++
++  if (alt_reloc) /* { dg-warning "may be used uninitialized" "" { xfail *-*-* }  }  */
++    bar = 42;
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-17.c b/gcc/testsuite/gcc.dg/auto-init-uninit-17.c
+new file mode 100644
+index 0000000000000..9eec9440c75ed
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-17.c
+@@ -0,0 +1,15 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++typedef _Complex float C;
++C foo(int cond)
++{
++  C f;
++  __imag__ f = 0;
++  if (cond)
++    {
++      __real__ f = 1;
++      return f;
++    }
++  return f;	/* { dg-warning "may be used" "unconditional" } */
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-18.c b/gcc/testsuite/gcc.dg/auto-init-uninit-18.c
+new file mode 100644
+index 0000000000000..1c9afa928c8d0
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-18.c
+@@ -0,0 +1,3 @@
++/* { dg-do compile }  */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-18.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-19.c b/gcc/testsuite/gcc.dg/auto-init-uninit-19.c
+new file mode 100644
+index 0000000000000..38d27e4f9548c
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-19.c
+@@ -0,0 +1,26 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++/* { dg-additional-options "-finline-small-functions" { target avr-*-* } } */
++
++int a, l, m;
++float *b;
++float c, d, e, g, h;
++unsigned char i, k;
++void
++fn1 (int p1, float *f1, float *f2, float *f3, unsigned char *c1, float *f4,
++     unsigned char *c2, float *p10)
++{
++  if (p1 & 8)
++    b[3] = p10[a];
++  /* { dg-warning "may be used uninitialized" "" { target { { nonpic || pie_enabled } || { hppa*64*-*-* *-*-darwin* } } } .-1 } */
++}
++
++void
++fn2 ()
++{
++  float *n;
++  if (l & 6)
++    n = &c + m;
++  fn1 (l, &d, &e, &g, &i, &h, &k, n);
++  /* { dg-warning "may be used uninitialized" "" { target { ! { { nonpic || pie_enabled } || { hppa*64*-*-* *-*-darwin* } } } } .-1 } */
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-2.c b/gcc/testsuite/gcc.dg/auto-init-uninit-2.c
+new file mode 100644
+index 0000000000000..4c32dc86397e8
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-2.c
+@@ -0,0 +1,5 @@
++/* Spurious uninitialized variable warnings, case 2.
++   Taken from cpphash.c (macroexpand) */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-2.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-20.c b/gcc/testsuite/gcc.dg/auto-init-uninit-20.c
+new file mode 100644
+index 0000000000000..d81957e5bb948
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-20.c
+@@ -0,0 +1,4 @@
++/* Spurious uninitialized variable warnings, from gdb */
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-20.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-21.c b/gcc/testsuite/gcc.dg/auto-init-uninit-21.c
+new file mode 100644
+index 0000000000000..cc61746073675
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-21.c
+@@ -0,0 +1,4 @@
++/* PR69537, spurious warning because of a missed optimization. */
++/* { dg-do compile } */
++/* { dg-options "-O2 -fno-short-enums -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-21.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-22.c b/gcc/testsuite/gcc.dg/auto-init-uninit-22.c
+new file mode 100644
+index 0000000000000..1e522ce542555
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-22.c
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-O3 -Wuninitialized --param vect-max-version-for-alias-checks=20 -ftrivial-auto-var-init=zero" } */
++#include "uninit-22.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-23.c b/gcc/testsuite/gcc.dg/auto-init-uninit-23.c
+new file mode 100644
+index 0000000000000..f1f783973ae49
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-23.c
+@@ -0,0 +1,27 @@
++/* PR tree-optimization/78455 */
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++int ij;
++
++void
++ql (void)
++{
++  int m5 = 0;
++
++  for (;;)
++  {
++    if (0)
++      for (;;)
++      {
++        int *go;
++        int *t4 = go; /* { dg-warning "is used uninitialized" } */
++
++ l1:
++        *t4 = (*t4 != 0) ? 0 : 2; /* { dg-warning "is used uninitialized" } */
++      }
++
++    if (ij != 0)
++      goto l1;
++  }
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-24.c b/gcc/testsuite/gcc.dg/auto-init-uninit-24.c
+new file mode 100644
+index 0000000000000..0f839ba9efa8e
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-24.c
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wmaybe-uninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-24.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-25.c b/gcc/testsuite/gcc.dg/auto-init-uninit-25.c
+new file mode 100644
+index 0000000000000..f36d95f9d2793
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-25.c
+@@ -0,0 +1,23 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wmaybe-uninitialized -ftrivial-auto-var-init=zero" } */
++
++extern unsigned bar (void);
++extern void quux (void);
++
++unsigned foo (unsigned v)
++{
++  unsigned u;
++  if (v != 1)
++    u = bar ();
++
++  // Prevent the "dom" pass from changing the CFG layout based on the inference
++  // 'if (v != 1) is false then (v != 2) is true'.  (Now it would have to
++  // duplicate the loop in order to do so, which is deemed expensive.)
++  for (int i = 0; i < 10; i++)
++    quux ();
++
++  if (v != 2)
++    return u;       /* { dg-warning "may be used uninitialized" } */
++
++  return 0;
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-26.c b/gcc/testsuite/gcc.dg/auto-init-uninit-26.c
+new file mode 100644
+index 0000000000000..ae97ecfa71e13
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-26.c
+@@ -0,0 +1,23 @@
++/* { dg-do compile } */
++/* { dg-options "-O -Wmaybe-uninitialized -ftrivial-auto-var-init=zero" } */
++
++extern unsigned bar (void);
++extern void quux (void);
++
++unsigned foo (unsigned v)
++{
++  unsigned u;
++  if (v != 100)
++    u = bar ();
++
++  // Prevent the "dom" pass from changing the CFG layout based on the inference
++  // 'if (v != 100) is false then (v < 105) is true'.  (Now it would have to
++  // duplicate the loop in order to do so, which is deemed expensive.)
++  for (int i = 0; i < 10; i++)
++    quux ();
++
++  if (v < 105) /* v == 100 falls into this range.  */
++    return u;       /* { dg-warning "may be used uninitialized" }  */
++
++  return 0;
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-3.c b/gcc/testsuite/gcc.dg/auto-init-uninit-3.c
+new file mode 100644
+index 0000000000000..5c109202a5ef0
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-3.c
+@@ -0,0 +1,5 @@
++/* Spurious uninit variable warnings, case 3.
++   Inspired by cppexp.c (parse_charconst) */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-3.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-34.c b/gcc/testsuite/gcc.dg/auto-init-uninit-34.c
+new file mode 100644
+index 0000000000000..1a687654ebb7f
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-34.c
+@@ -0,0 +1,60 @@
++/* PR middle-end/10138 - warn for uninitialized arrays passed as const*
++   arguments
++   Verify that passing pointers to uninitialized objects to arguments
++   to functions declared with attribute access is diagnosed where expected.
++   { dg-do compile }
++   { dg-options "-O -Wall -ftrivial-auto-var-init=zero" } */
++/* -ftrivial-auto-var-init will make the uninitialized warning for address
++   taken auto var going away, FIXME later.  */
++
++#define RW(...) __attribute__ ((access (read_write, __VA_ARGS__)))
++
++RW (1) RW (3) void
++f4pi (int*, int*, int*, int*);    // { dg-message "in a call to 'f4pi' declared with attribute 'access \\\(read_write, \[13\]\\\)'" }
++
++
++void nowarn_scalar (void)
++{
++  int i1 = 0, i2, i3 = 1, i4;
++  f4pi (&i1, &i2, &i3, &i4);
++}
++
++void warn_scalar_1 (void)
++{
++  int i1;                         // { dg-message "declared here" "" { xfail *-*-* } }
++  int i2, i3 = 1, i4;
++
++  f4pi (&i1, &i2, &i3, &i4);      // { dg-warning "'i1' may be used uninitialized" "" { xfail *-*-* } }
++}
++
++void warn_scalar_2 (void)
++{
++  int j1 = 0, j2, j4;
++  int j3;
++
++  f4pi (&j1, &j2, &j3, &j4);      // { dg-warning "'j3' may be used uninitialized" "" { xfail *-*-* } }
++}
++
++
++void nowarn_array_init (void)
++{
++  int a1[4] = { 0 }, a2[5], a3[6] = { 0 }, a4[7];
++
++  f4pi (a1, a2, a3, a4);
++}
++
++void warn_array_1 (void)
++{
++  int a1[4];                  // { dg-message "'a1' declared here" }
++  int a2[5], a3[6] = { 0 }, a4[7];
++
++  f4pi (a1, a2, a3, a4);      // { dg-warning "'a1' may be used uninitialized" }
++}
++
++void warn_array_2 (void)
++{
++  int a1[4] = { 0 }, a2[5], a4[7];
++  int a3[6];                  // { dg-message "'a3' declared here" }
++
++  f4pi (a1, a2, a3, a4);      // { dg-warning "'a3' may be used uninitialized" }
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-36.c b/gcc/testsuite/gcc.dg/auto-init-uninit-36.c
+new file mode 100644
+index 0000000000000..64377d380ee91
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-36.c
+@@ -0,0 +1,238 @@
++/* PR middle-end/10138 - warn for uninitialized arrays passed as const*
++   arguments
++   Verify that passing pointers to uninitialized objects to const
++   arguments to built-ins is diagnosed where expected.
++   { dg-do compile }
++   { dg-options "-O -Wall -ftrivial-auto-var-init=zero" }
++   { dg-require-effective-target alloca } */
++
++typedef __SIZE_TYPE__ size_t;
++
++void* alloca (size_t);
++void* malloc (size_t);
++void* realloc (void*, size_t);
++
++void* memcpy (void*, const void*, size_t);
++char* strcpy (char*, const char*);
++size_t strlen (const char*);
++
++void sink (void*);
++
++void nowarn_array_memcpy (void *d, unsigned n)
++{
++  int a[2];
++  /* Diagnose this?  */
++  memcpy (d, a, n /* Non-constant to avoid folding into MEM_REF.  */);
++}
++
++void nowarn_array_plus_cst_memcpy (void *d, unsigned n)
++{
++  int a[3];
++  /* Diagnose this?  */
++  memcpy (d, a + 1, n);
++}
++
++void nowarn_array_plus_var_memcpy (void *d, unsigned n, int i)
++{
++  int a[4];
++  /* Diagnose this?  */
++  memcpy (d, a + i, n);
++}
++
++void nowarn_array_assign_memcpy (char *d, unsigned n)
++{
++  int a[3];
++  a[1] = 3;
++  memcpy (d, a, n);
++}
++
++void nowarn_array_init_memcpy (char *d, unsigned n)
++{
++  int a[4] = { 0 };
++  memcpy (d, a, n);
++}
++
++void nowarn_array_compound_memcpy (void *d, unsigned n)
++{
++  memcpy (d, (int[2]){ 0 }, n);
++}
++
++void nowarn_struct_assign_memcpy (void *d, unsigned n)
++{
++  struct S { int a, b, c, d; } s;
++  s.b = 1;
++  s.d = 2;
++  memcpy (d, &s, n);
++}
++
++
++void nowarn_array_init_strcpy (char *d[], unsigned n)
++{
++  char a[8] = "012";
++
++  strcpy (d[0], a);
++  strcpy (d[1], a + 1);
++  strcpy (d[1], a + 2);
++  strcpy (d[1], a + 3);
++  strcpy (d[1], a + 4);
++  strcpy (d[1], a + 5);
++  strcpy (d[1], a + 6);
++  strcpy (d[1], a + 7);
++}
++
++
++void nowarn_array_assign_strcpy (char *d[], unsigned n)
++{
++  char a[8];
++  a[0] = '0';
++  a[1] = '1';
++  a[2] = '2';
++  a[3] = '\0';
++
++  strcpy (d[0], a);
++  strcpy (d[1], a + 1);
++  strcpy (d[1], a + 2);
++  strcpy (d[1], a + 3);
++}
++
++void warn_array_plus_cst_strcpy (char *d, unsigned n)
++{
++  char a[8];
++  a[0] = '1';
++  a[1] = '2';
++  a[2] = '3';
++  a[3] = '\0';
++
++  strcpy (d, a + 4);          // { dg-warning "\\\[-Wuninitialized" }
++  strcpy (d, a + 5);          // { dg-warning "\\\[-Wuninitialized" }
++  strcpy (d, a + 6);          // { dg-warning "\\\[-Wuninitialized" }
++  strcpy (d, a + 7);          // { dg-warning "\\\[-Wuninitialized" }
++}
++
++void nowarn_array_plus_var_strcpy (char *d, int i)
++{
++  char a[8];
++  a[0] = '1';
++  a[1] = '2';
++  a[2] = '3';
++  a[3] = '\0';
++
++  strcpy (d, a + i);
++}
++
++
++size_t nowarn_array_assign_strlen (const char *s)
++{
++  char a[8];
++  a[0] = s[0];
++  a[1] = s[1];
++  a[2] = s[2];
++  a[3] = s[3];
++
++  size_t n = 0;
++
++  n += strlen (a);
++  n += strlen (a + 1);
++  n += strlen (a + 2);
++  n += strlen (a + 3);
++  return n;
++}
++
++size_t warn_array_plus_cst_strlen (const char *s)
++{
++  char a[8];
++  a[0] = s[0];
++  a[1] = s[1];
++  a[2] = s[2];
++  a[3] = s[3];
++
++  return strlen (a + 4);      // { dg-warning "\\\[-Wuninitialized" }
++}
++
++size_t nowarn_array_plus_var_strlen (const char *s, int i)
++{
++  char a[8];
++  a[0] = s[0];
++  a[1] = s[1];
++  a[2] = s[2];
++  a[3] = s[3];
++
++  return strlen (a + i);
++}
++
++
++size_t nowarn_alloca_assign_strlen (int i)
++{
++  char *p = (char*)alloca (8);
++  p[i] = '\0';
++  return strlen (p);
++}
++
++size_t nowarn_alloca_escape_strlen (int i)
++{
++  char *p = (char*)alloca (8);
++  sink (p);
++  return strlen (p);
++}
++
++size_t warn_alloca_strlen (void)
++{
++  char *p = (char*)alloca (8);
++  return strlen (p);          // { dg-warning "\\\[-Wuninitialized" }
++}
++
++
++size_t nowarn_malloc_assign_strlen (int i)
++{
++  char *p = (char*)malloc (8);
++  p[i] = '\0';
++  return strlen (p);
++}
++
++size_t nowarn_malloc_escape_strlen (int i)
++{
++  char *p = (char*)malloc (8);
++  sink (p);
++  return strlen (p);
++}
++
++size_t warn_malloc_strlen (void)
++{
++  char *p = (char*)malloc (8);
++  return strlen (p);          // { dg-warning "\\\[-Wuninitialized" }
++}
++
++
++size_t nowarn_realloc_strlen (void *p)
++{
++  char *q = (char*)realloc (p, 8);
++  return strlen (q);
++}
++
++
++size_t nowarn_vla_assign_strlen (int n, int i)
++{
++  char vla[n];
++  vla[i] = '\0';
++  return strlen (vla);
++}
++
++size_t nowarn_vla_strcpy_strlen (int n, const char *s, int i)
++{
++  char vla[n];
++  strcpy (vla, s);
++  return strlen (vla + i);
++}
++
++size_t nowarn_vla_escape_strlen (int n, int i)
++{
++  char vla[n];
++  sink (vla);
++  return strlen (vla);
++}
++
++size_t warn_vla_strlen (unsigned n)
++{
++  char vla[n];
++  return strlen (vla);        // { dg-warning "\\\[-Wuninitialized" }
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-37.c b/gcc/testsuite/gcc.dg/auto-init-uninit-37.c
+new file mode 100644
+index 0000000000000..2791b37ca0094
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-37.c
+@@ -0,0 +1,156 @@
++/* PR middle-end/10138 - warn for uninitialized arrays passed as const arguments
++   Verify that -Wuninitialized and -Wmaybe-uninitialized trigger (or don't)
++   when passing uninitialized variables by reference to functions declared
++   with or without attribute access and with (or without) const qualified
++   arguments of array, VLA, or pointer types.
++   { dg-do compile }
++   { dg-options "-O2 -Wall -ftrack-macro-expansion=0 -ftrivial-auto-var-init=zero" } */
++/* -ftrivial-auto-var-init will make the uninitialized warning for address
++   taken auto var going away, FIXME later.  */
++
++#define NONE    /* none */
++#define RO(...) __attribute__ ((access (read_only, __VA_ARGS__)))
++#define RW(...) __attribute__ ((access (read_write, __VA_ARGS__)))
++#define WO(...) __attribute__ ((access (write_only, __VA_ARGS__)))
++#define X(...)  __attribute__ ((access (none, __VA_ARGS__)))
++
++#define CONCAT(x, y) x ## y
++#define CAT(x, y)    CONCAT (x, y)
++#define UNIQ(pfx)    CAT (pfx, __LINE__)
++
++extern void sink (void*);
++
++
++#define T1(attr, name, type)			\
++  void UNIQ (CAT (test_, name))(void) {		\
++    extern attr void UNIQ (name)(type);		\
++    int x;					\
++    UNIQ (name)(&x);				\
++    sink (&x);					\
++  }
++
++#define T2(attr, name, types)			\
++  void UNIQ (CAT (test_, name))(void) {		\
++    extern attr void UNIQ (name)(types);	\
++    int x;					\
++    UNIQ (name)(1, &x);				\
++    sink (&x);					\
++  }
++
++
++typedef int IA_[];
++typedef const int CIA_[];
++
++T1 (NONE,   fia_,   IA_);
++T1 (NONE,   fcia_,  CIA_);    // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froia_, IA_);     // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwia_, IA_);     // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoia_, IA_);
++T1 (X (1),  fxia_,  IA_);
++
++
++typedef int IA1[1];
++typedef const int CIA1[1];
++
++T1 (NONE,   fia1,   IA1);
++T1 (NONE,   fcia1,  CIA1);    // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froia1, IA1);     // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwia1, IA1);     // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoia1, IA1);
++T1 (X (1),  fxia1,  IA1);
++
++
++#define IARS1  int[restrict static 1]
++#define CIARS1 const int[restrict static 1]
++
++T1 (NONE,   fiars1,   IARS1);
++T1 (NONE,   fciars1,  CIARS1);// { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froiars1, IARS1); // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwiars1, IARS1); // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoiars1, IARS1);
++T1 (X (1),  fxiars1,  IARS1);
++
++
++#define IAS1  int[static 1]
++#define CIAS1 const int[static 1]
++
++T1 (NONE,   fias1,   IAS1);
++T1 (NONE,   fcias1,  CIAS1);   // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froias1, IAS1);    // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwias1, IAS1);    // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoias1, IAS1);
++T1 (X (1),  fxias1,  IAS1);
++
++
++#define IAX  int[*]
++#define CIAX const int[*]
++
++T1 (NONE,   fiax,   IAX);
++T1 (NONE,   fciax,  CIAX);    // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froiax, IAX);     // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwiax, IAX);     // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoiax, IAX);
++T1 (X (1),  fxiax,  IAX);
++
++
++#define IAN  int n, int[n]
++#define CIAN int n, const int[n]
++
++T2 (NONE,      fian,   IAN);
++T2 (NONE,      fcian,  CIAN); // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T2 (RO (2, 1), froian, IAN);  // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T2 (RW (2, 1), frwian, IAN);  // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T2 (WO (2, 1), fwoian, IAN);
++T2 (X (2, 1),  fxian,  IAN);
++
++
++typedef int* IP;
++typedef const int* CIP;
++
++T1 (NONE,   fip,   IP);
++T1 (NONE,   fcip,  CIP);     // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (RO (1), froip, IP);      // { dg-warning "\\\[-Wuninitialized" "" { xfail *-*-* } }
++T1 (RW (1), frwip, IP);      // { dg-warning "\\\[-Wmaybe-uninitialized" "" { xfail *-*-* } }
++T1 (WO (1), fwoip, IP);
++T1 (X (1),  fxip,  IP);
++
++
++/* Verify that the notes printed after the warning mention attribute
++   access only when the attribute is explicitly used in the declaration
++   and not otherwise.  */
++
++void test_note_cst_restrict (void)
++{
++  extern void
++    fccar (const char[restrict]);   // { dg-message "by argument 1 of type 'const char\\\[restrict]' to 'fccar'" "note" }
++
++  char a[1];                  // { dg-message "'a' declared here" "note" }
++  fccar (a);                  // { dg-warning "'a' may be used uninitialized" }
++}
++
++void test_note_vla (int n)
++{
++  extern void
++    fccvla (const char[n]);   // { dg-message "by argument 1 of type 'const char\\\[n]' to 'fccvla'" "note" }
++
++  char a[2];                  // { dg-message "'a' declared here" "note" }
++  fccvla (a);                 // { dg-warning "'a' may be used uninitialized" }
++}
++
++void test_note_ro (void)
++{
++  extern RO (1) void
++    frocar (char[restrict]);  // { dg-message "in a call to 'frocar' declared with attribute 'access \\\(read_only, 1\\\)'" "note" }
++
++  char a[3];                  // { dg-message "'a' declared here" "note" }
++  frocar (a);                 // { dg-warning "'a' is used uninitialized" }
++}
++
++void test_note_rw (void)
++{
++  extern RW (1) void
++    frwcar (char[restrict]);  // { dg-message "in a call to 'frwcar' declared with attribute 'access \\\(read_write, 1\\\)'" "note" }
++
++  char a[4];                  // { dg-message "'a' declared here" "note" }
++  frwcar (a);                 // { dg-warning "'a' may be used uninitialized" }
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-4.c b/gcc/testsuite/gcc.dg/auto-init-uninit-4.c
+new file mode 100644
+index 0000000000000..29ec860f0ed89
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-4.c
+@@ -0,0 +1,10 @@
++/* Spurious uninit variable warnings, case 4.
++   Simplified version of cppexp.c (cpp_parse_expr).
++
++   This one is really fragile, it gets it right if you take out case
++   1, or if the structure is replaced by an int, or if the structure
++   has fewer members (!) */
++
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-4.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-5.c b/gcc/testsuite/gcc.dg/auto-init-uninit-5.c
+new file mode 100644
+index 0000000000000..65b251a2185f1
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-5.c
+@@ -0,0 +1,6 @@
++/* Spurious uninitialized-variable warnings.  */
++/* Disable jump threading, etc to test compiler analysis.  */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -fno-tree-dce -fno-tree-vrp -fno-tree-dominator-opts -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-5.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-6.c b/gcc/testsuite/gcc.dg/auto-init-uninit-6.c
+new file mode 100644
+index 0000000000000..7c10dfc5895b3
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-6.c
+@@ -0,0 +1,7 @@
++/* Spurious uninitialized variable warnings.
++   This one inspired by java/class.c:build_utf8_ref.  */
++
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-6.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-8.c b/gcc/testsuite/gcc.dg/auto-init-uninit-8.c
+new file mode 100644
+index 0000000000000..eaa9c0c9093fa
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-8.c
+@@ -0,0 +1,8 @@
++/* Uninitialized variable warning tests...
++   Inspired by part of optabs.c:expand_binop.
++   May be the same as uninit-1.c.  */
++
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-8.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-9.c b/gcc/testsuite/gcc.dg/auto-init-uninit-9.c
+new file mode 100644
+index 0000000000000..6dccf014fe2be
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-9.c
+@@ -0,0 +1,8 @@
++/* Spurious uninitialized variable warnings.  Slight variant on the
++   documented case, inspired by reg-stack.c:record_asm_reg_life.  */
++
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++/* { dg-require-effective-target alloca } */
++
++#include "uninit-9.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-A.c b/gcc/testsuite/gcc.dg/auto-init-uninit-A.c
+new file mode 100644
+index 0000000000000..0ef1d92a74738
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-A.c
+@@ -0,0 +1,7 @@
++/* Inspired by part of java/parse.y.
++   May be a real bug in CSE. */
++
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wall -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-A.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-B.c b/gcc/testsuite/gcc.dg/auto-init-uninit-B.c
+new file mode 100644
+index 0000000000000..b6d3efdfb8808
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-B.c
+@@ -0,0 +1,17 @@
++/* Origin: PR c/179 from Gray Watson <gray@256.com>, adapted as a testcase
++   by Joseph Myers <jsm28@cam.ac.uk>.  */
++/* -ftrivial-auto-var-init will make the uninitialized warning for address
++   taken auto var going away, FIXME later.  */
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++extern void foo (int *);
++extern void bar (int);
++
++void
++baz (void)
++{
++  int i;
++  if (i) /* { dg-warning "is used uninitialized" "uninit i warning" { xfail *-*-* } }  */
++    bar (i);
++  foo (&i);
++}
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-C.c b/gcc/testsuite/gcc.dg/auto-init-uninit-C.c
+new file mode 100644
+index 0000000000000..be1979626447c
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-C.c
+@@ -0,0 +1,5 @@
++/* Spurious uninitialized variable warning, inspired by libgcc2.c.  */
++/* { dg-do compile } */
++/* { dg-options "-O -Wuninitialized -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-C.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-H.c b/gcc/testsuite/gcc.dg/auto-init-uninit-H.c
+new file mode 100644
+index 0000000000000..e442fab00be6f
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-H.c
+@@ -0,0 +1,5 @@
++/* PR 14204 */
++/* { dg-do compile } */
++/* { dg-options "-O -Wall -Werror -ftrivial-auto-var-init=zero" } */
++
++#include "uninit-H.c"
+diff --git a/gcc/testsuite/gcc.dg/auto-init-uninit-I.c b/gcc/testsuite/gcc.dg/auto-init-uninit-I.c
+new file mode 100644
+index 0000000000000..4f9ae6cd98cd5
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/auto-init-uninit-I.c
+@@ -0,0 +1,3 @@
++/* { dg-do compile } */
++/* { dg-options "-O2 -Wuninitialized -ftrivial-auto-var-init=zero" } */
++#include "uninit-H.c"
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-1.c b/gcc/testsuite/gcc.target/aarch64/auto-init-1.c
+new file mode 100644
+index 0000000000000..0fa470880bf5d
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-1.c
+@@ -0,0 +1,32 @@
++/* Verify zero initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0" 11 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-2.c b/gcc/testsuite/gcc.target/aarch64/auto-init-2.c
+new file mode 100644
+index 0000000000000..2c54e6d603823
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-2.c
+@@ -0,0 +1,35 @@
++/* Verify pattern initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-O -ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfe\\\]" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffefe" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffefefefe" 2 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfefefefefefefefe" 2 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-3.c b/gcc/testsuite/gcc.target/aarch64/auto-init-3.c
+new file mode 100644
+index 0000000000000..7008f76b294cd
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-3.c
+@@ -0,0 +1,19 @@
++/* Verify zero initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++  
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_double\:SF 0\.0" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "const_double\:DF 0\.0" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "const_double\:TF 0\.0" 1 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-4.c b/gcc/testsuite/gcc.target/aarch64/auto-init-4.c
+new file mode 100644
+index 0000000000000..10197045b4cde
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-4.c
+@@ -0,0 +1,19 @@
++/* Verify pattern initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-O -ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++  
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump "\\-0x0\\.fefefep\\+127" "expand" } } */
++/* { dg-final { scan-rtl-dump "\\-0x0\\.f7f7f7f7f7f7fp\\+1009" "expand" } } */
++/* { dg-final { scan-rtl-dump "\\-0x0\\.ff7f7f7f7f7f7f7f7f7f7f7f7f7fp\\+16128" "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-5.c b/gcc/testsuite/gcc.target/aarch64/auto-init-5.c
+new file mode 100644
+index 0000000000000..ac69ac3df82e6
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-5.c
+@@ -0,0 +1,19 @@
++/* Verify zero initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-assembler-times "\.word\t0" 14 } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-6.c b/gcc/testsuite/gcc.target/aarch64/auto-init-6.c
+new file mode 100644
+index 0000000000000..27c16b3367895
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-6.c
+@@ -0,0 +1,18 @@
++/* Verify pattern initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 3 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-7.c b/gcc/testsuite/gcc.target/aarch64/auto-init-7.c
+new file mode 100644
+index 0000000000000..ac27fbe92f4a3
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-7.c
+@@ -0,0 +1,32 @@
++/* Verify zero initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0" 8 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-8.c b/gcc/testsuite/gcc.target/aarch64/auto-init-8.c
+new file mode 100644
+index 0000000000000..3943f5a4d6b27
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-8.c
+@@ -0,0 +1,32 @@
++/* Verify pattern initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 4 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-1.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-1.c
+new file mode 100644
+index 0000000000000..d3a88c7245454
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-1.c
+@@ -0,0 +1,17 @@
++/* Verify zero initialization for structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_aligned {
++        int internal1;
++        long long internal2;
++} __attribute__ ((aligned(64)));
++
++int foo ()
++{
++  struct test_aligned var;
++  return var.internal1;
++}
++
++/* { dg-final { scan-assembler-times "stp\tq0, q0," 2 } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-10.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-10.c
+new file mode 100644
+index 0000000000000..b0f3acb2f5286
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-10.c
+@@ -0,0 +1,22 @@
++/* Verify pattern initialization for array type with structure element with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++
++int foo ()
++{
++  struct test_trailing_hole var[10]; 
++  return var[2].four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-11.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-11.c
+new file mode 100644
+index 0000000000000..02f7edc51008a
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-11.c
+@@ -0,0 +1,27 @@
++/* Verify zero initialization for union type with structure field with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++union test_union_padding {
++  struct test_trailing_hole u1;
++  long long u2;
++};
++
++
++int foo ()
++{
++  union test_union_padding var;
++  return var.u1.four;
++}
++
++/* { dg-final { scan-assembler "stp\txzr, xzr," } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-12.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-12.c
+new file mode 100644
+index 0000000000000..555972f1728f4
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-12.c
+@@ -0,0 +1,27 @@
++/* Verify pattern initialization for union type with structure field with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++union test_union_padding {
++  struct test_trailing_hole u1;
++  long long u2;
++};
++
++
++int foo ()
++{
++  union test_union_padding var;
++  return var.u1.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-2.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-2.c
+new file mode 100644
+index 0000000000000..aceceb87fbe16
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-2.c
+@@ -0,0 +1,18 @@
++/* Verify pattern initialization for structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern" } */
++
++struct test_aligned {
++        int internal1;
++        long long internal2;
++} __attribute__ ((aligned(64)));
++
++int foo ()
++{
++  struct test_aligned var;
++  return var.internal1;
++}
++
++/* { dg-final { scan-assembler-times "stp\tq0, q0," 2 } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-3.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-3.c
+new file mode 100644
+index 0000000000000..085c386292105
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-3.c
+@@ -0,0 +1,27 @@
++/* Verify zero initialization for nested structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_aligned {
++        unsigned internal1;
++        unsigned long long internal2;
++} __attribute__ ((aligned(64)));
++
++struct test_big_hole {
++        char one;
++        char two;
++        char three;
++        /* 61 byte padding hole here. */
++        struct test_aligned four;
++} __attribute__ ((aligned(64)));
++
++
++int foo ()
++{
++  struct test_big_hole var;
++  return var.four.internal1;
++}
++
++/* { dg-final { scan-assembler-times "stp\tq0, q0," 4 } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-4.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-4.c
+new file mode 100644
+index 0000000000000..7a6ddbc20ee1f
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-4.c
+@@ -0,0 +1,27 @@
++/* Verify pattern initialization for nested structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern" } */
++
++struct test_aligned {
++        unsigned internal1;
++        unsigned long long internal2;
++} __attribute__ ((aligned(64)));
++
++struct test_big_hole {
++        char one;
++        char two;
++        char three;
++        /* 61 byte padding hole here. */
++        struct test_aligned four;
++} __attribute__ ((aligned(64)));
++
++
++int foo ()
++{
++  struct test_big_hole var;
++  return var.four.internal1;
++}
++
++/* { dg-final { scan-assembler-times "stp\tq0, q0," 5 } } */
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-5.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-5.c
+new file mode 100644
+index 0000000000000..3c45a6c6288d7
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-5.c
+@@ -0,0 +1,22 @@
++/* Verify zero initialization for structure type automatic variables with
++   tail padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        char *one;
++        char *two;
++        char *three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var;
++  return var.four;
++}
++
++/* { dg-final { scan-assembler-times "stp\txzr, xzr," 2 } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-6.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-6.c
+new file mode 100644
+index 0000000000000..bfef23d52a10c
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-6.c
+@@ -0,0 +1,20 @@
++/* Verify pattern initialization for structure type automatic variables with
++   tail padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        char *one;
++        char *two;
++        char *three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var;
++  return var.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-7.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-7.c
+new file mode 100644
+index 0000000000000..cb96c3a1e4b21
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-7.c
+@@ -0,0 +1,20 @@
++/* Verify zero initialization for structure type automatic variables with
++   padding and has explicit initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var = {.one = 1,.two = 2, .four = 'c'};
++  return var.four;
++}
++
++/* { dg-final { scan-assembler "stp\txzr, xzr," } } */
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-8.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-8.c
+new file mode 100644
+index 0000000000000..ce7c7cd31c1f8
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-8.c
+@@ -0,0 +1,22 @@
++/* Verify pattern initialization for structure type automatic variables with
++   padding and has explicit initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var = {.one = 1,.two = 2, .four = 'c'};
++  return var.four;
++}
++
++/* { dg-final { scan-assembler "stp\txzr, xzr," } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/aarch64/auto-init-padding-9.c b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-9.c
+new file mode 100644
+index 0000000000000..c81e5ff28b0b7
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/aarch64/auto-init-padding-9.c
+@@ -0,0 +1,21 @@
++/* Verify zero initialization for array type with structure element with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++
++int foo ()
++{
++  struct test_trailing_hole var[10]; 
++  return var[2].four;
++}
++
++/* { dg-final { scan-assembler-times "stp\tq0, q0," 5 } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-1.c b/gcc/testsuite/gcc.target/i386/auto-init-1.c
+new file mode 100644
+index 0000000000000..b7690df240606
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-1.c
+@@ -0,0 +1,32 @@
++/* Verify zero initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0" 10 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-2.c b/gcc/testsuite/gcc.target/i386/auto-init-2.c
+new file mode 100644
+index 0000000000000..e76fc2565168b
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-2.c
+@@ -0,0 +1,36 @@
++/* Verify pattern initialization for integer and pointer type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++#ifndef __cplusplus
++# define bool _Bool
++#endif
++
++enum E {
++  N1 = 0,
++  N2,
++  N3
++};
++
++extern void bar (char, short, int, enum E, long, long long, int *, bool);
++
++void foo()
++{
++  char temp1;
++  short temp2;
++  int temp3;
++  enum E temp4;
++  long temp5;
++  long long temp6;
++  int *temp7;
++  bool temp8;
++
++  bar (temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe" 2 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffefe" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffefefefe" 2 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfefefefefefefefe" 3 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-21.c b/gcc/testsuite/gcc.target/i386/auto-init-21.c
+new file mode 100644
+index 0000000000000..1192a908f9df4
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-21.c
+@@ -0,0 +1,14 @@
++/* Verify zero initialization for VLA automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++extern void bar (int);
++
++void foo(int n)
++{
++  int arr[n];
++  bar (arr[2]);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump "__builtin_memset" "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-22.c b/gcc/testsuite/gcc.target/i386/auto-init-22.c
+new file mode 100644
+index 0000000000000..431d9664e94f8
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-22.c
+@@ -0,0 +1,14 @@
++/* Verify zero initialization for VLA automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++extern void bar (int);
++
++void foo(int n)
++{
++  int arr[n];
++  bar (arr[2]);
++  return;
++}
++
++/* { dg-final { scan-rtl-dump "__builtin_memset" "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-23.c b/gcc/testsuite/gcc.target/i386/auto-init-23.c
+new file mode 100644
+index 0000000000000..72094f6bdb922
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-23.c
+@@ -0,0 +1,13 @@
++/* Verify the auto initialization of nested VLA.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++void g(void *);
++
++void foo(int a)
++{
++  int x[a][a];
++  g(x);
++}
++
++/* { dg-final { scan-rtl-dump "__builtin_memset" "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-24.c b/gcc/testsuite/gcc.target/i386/auto-init-24.c
+new file mode 100644
+index 0000000000000..5cc3a756a1c51
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-24.c
+@@ -0,0 +1,13 @@
++/* Verify the auto initialization of nested VLA.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++void g(void *);
++
++void foo(int a)
++{
++  int x[a][a];
++  g(x);
++}
++
++/* { dg-final { scan-rtl-dump "__builtin_memset" "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-3.c b/gcc/testsuite/gcc.target/i386/auto-init-3.c
+new file mode 100644
+index 0000000000000..300ddfb34f117
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-3.c
+@@ -0,0 +1,17 @@
++/* Verify zero initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-assembler-times "pxor\t\\\%xmm0, \\\%xmm0" 3 } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-4.c b/gcc/testsuite/gcc.target/i386/auto-init-4.c
+new file mode 100644
+index 0000000000000..abe0b7e46a071
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-4.c
+@@ -0,0 +1,20 @@
++/* Verify pattern initialization for floating point type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++long double result;
++
++long double foo()
++{
++  float temp1;
++  double temp2;
++  long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffefefefe" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "\\\[0xfefefefefefefefe\\\]" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-5.c b/gcc/testsuite/gcc.target/i386/auto-init-5.c
+new file mode 100644
+index 0000000000000..b2e708c528936
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-5.c
+@@ -0,0 +1,20 @@
++/* Verify zero initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-assembler-times "\\.long\t0" 14 } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-6.c b/gcc/testsuite/gcc.target/i386/auto-init-6.c
+new file mode 100644
+index 0000000000000..c79c039c2e984
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-6.c
+@@ -0,0 +1,19 @@
++/* Verify pattern initialization for complex type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++
++_Complex long double result;
++
++_Complex long double foo()
++{
++  _Complex float temp1;
++  _Complex double temp2;
++  _Complex long double temp3;
++
++  result = temp1 + temp2 + temp3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "\\\[0xfefefefefefefefe\\\]" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 2 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-7.c b/gcc/testsuite/gcc.target/i386/auto-init-7.c
+new file mode 100644
+index 0000000000000..011437965debf
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-7.c
+@@ -0,0 +1,33 @@
++/* Verify zero initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0 \\\[0\\\]\\\)\\\)" 3 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "const_int 0 \\\[0\\\]\\\) repeated x16" 2 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-8.c b/gcc/testsuite/gcc.target/i386/auto-init-8.c
+new file mode 100644
+index 0000000000000..28fbeb7eece2c
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-8.c
+@@ -0,0 +1,35 @@
++/* Verify pattern initialization for array, union, and structure type automatic variables.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct S
++{
++  int f1;
++  float f2;
++  char f3[20];
++};
++
++union U
++{
++  char u1[5];
++  int u2;
++  float u3; 
++};
++
++double result;
++
++double foo()
++{
++  int temp1[3];
++  double temp2[3];
++  struct S temp3;
++  union U temp4;
++  
++  result = temp1[2] + temp2[1] + temp3.f2 + temp4.u3;
++  return result;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffefefefe" 1 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "\\\[0xfefefefefefefefe\\\]" 2 "expand" } } */
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 2 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-1.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-1.c
+new file mode 100644
+index 0000000000000..a238b8b4cf58e
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-1.c
+@@ -0,0 +1,19 @@
++/* Verify zero initialization for structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++struct test_aligned {
++        int internal1;
++        long long internal2;
++} __attribute__ ((aligned(64)));
++
++int foo ()
++{
++  struct test_aligned var;
++  return var.internal1;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0 \\\[0\\\]\\\) repeated x16" 1 "expand" } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-10.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-10.c
+new file mode 100644
+index 0000000000000..3fc6b07298250
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-10.c
+@@ -0,0 +1,21 @@
++/* Verify pattern initialization for array type with structure element with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++
++int foo ()
++{
++  struct test_trailing_hole var[10]; 
++  return var[2].four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-11.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-11.c
+new file mode 100644
+index 0000000000000..cc982b980f6fb
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-11.c
+@@ -0,0 +1,26 @@
++/* Verify zero initialization for union type with structure field with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++union test_union_padding {
++  struct test_trailing_hole u1;
++  long long u2;
++};
++
++
++int foo ()
++{
++  union test_union_padding var;
++  return var.u1.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0 \\\[0\\\]\\\) repeated x16" 1 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-12.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-12.c
+new file mode 100644
+index 0000000000000..0fbdb6c046d7b
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-12.c
+@@ -0,0 +1,26 @@
++/* Verify pattern initialization for union type with structure field with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++union test_union_padding {
++  struct test_trailing_hole u1;
++  long long u2;
++};
++
++
++int foo ()
++{
++  union test_union_padding var;
++  return var.u1.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-2.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-2.c
+new file mode 100644
+index 0000000000000..5739aa16b114c
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-2.c
+@@ -0,0 +1,19 @@
++/* Verify pattern initialization for structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_aligned {
++        int internal1;
++        long long internal2;
++} __attribute__ ((aligned(64)));
++
++int foo ()
++{
++  struct test_aligned var;
++  return var.internal1;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-3.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-3.c
+new file mode 100644
+index 0000000000000..8a6d764b9fa4b
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-3.c
+@@ -0,0 +1,30 @@
++/* Verify zero initialization for nested structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_aligned {
++        unsigned internal1;
++        unsigned long long internal2;
++} __attribute__ ((aligned(64)));
++
++struct test_big_hole {
++        char one;
++        char two;
++        char three;
++        /* 61 byte padding hole here. */
++        struct test_aligned four;
++} __attribute__ ((aligned(64)));
++
++
++int foo ()
++{
++  struct test_big_hole var;
++  return var.four.internal1;
++}
++
++/* { dg-final { scan-assembler "movl\t\\\$0," } } */
++/* { dg-final { scan-assembler "movl\t\\\$16," } } */
++/* { dg-final { scan-assembler "rep stosq" } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-4.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-4.c
+new file mode 100644
+index 0000000000000..d7be32617e443
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-4.c
+@@ -0,0 +1,28 @@
++/* Verify pattern initialization for nested structure type automatic variables with
++   padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_aligned {
++        unsigned internal1;
++        unsigned long long internal2;
++} __attribute__ ((aligned(64)));
++
++struct test_big_hole {
++        char one;
++        char two;
++        char three;
++        /* 61 byte padding hole here. */
++        struct test_aligned four;
++} __attribute__ ((aligned(64)));
++
++
++int foo ()
++{
++  struct test_big_hole var;
++  return var.four.internal1;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-5.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-5.c
+new file mode 100644
+index 0000000000000..569b09aef2392
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-5.c
+@@ -0,0 +1,21 @@
++/* Verify zero initialization for structure type automatic variables with
++   tail padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        char *one;
++        char *two;
++        char *three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var;
++  return var.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "const_int 0 \\\[0\\\]\\\) repeated x16" 1 "expand" } } */
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-6.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-6.c
+new file mode 100644
+index 0000000000000..4e0b6142134fd
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-6.c
+@@ -0,0 +1,22 @@
++/* Verify pattern initialization for structure type automatic variables with
++   tail padding.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern -fdump-rtl-expand" } */
++
++struct test_trailing_hole {
++        char *one;
++        char *two;
++        char *three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var;
++  return var.four;
++}
++
++/* { dg-final { scan-rtl-dump-times "0xfffffffffffffffe\\\]\\\) repeated x16" 1 "expand" } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-7.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-7.c
+new file mode 100644
+index 0000000000000..b5abffb0fc66b
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-7.c
+@@ -0,0 +1,22 @@
++/* Verify zero initialization for structure type automatic variables with
++   padding and has explicit initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var = {.one = 1,.two = 2, .four = 'c'};
++  return var.four;
++}
++
++/* { dg-final { scan-assembler-times "movq\t\\\$0," 2 } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-8.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-8.c
+new file mode 100644
+index 0000000000000..66591cff44884
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-8.c
+@@ -0,0 +1,22 @@
++/* Verify pattern initialization for structure type automatic variables with
++   padding and has explicit initialization.  */
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=pattern" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++int foo ()
++{
++  struct test_trailing_hole var = {.one = 1,.two = 2, .four = 'c'};
++  return var.four;
++}
++
++/* { dg-final { scan-assembler-times "movq\t\\\$0," 2 } } */
++
++
+diff --git a/gcc/testsuite/gcc.target/i386/auto-init-padding-9.c b/gcc/testsuite/gcc.target/i386/auto-init-padding-9.c
+new file mode 100644
+index 0000000000000..1ff900f95b98a
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/i386/auto-init-padding-9.c
+@@ -0,0 +1,22 @@
++/* Verify zero initialization for array type with structure element with
++   padding.  */ 
++/* { dg-do compile } */
++/* { dg-options "-ftrivial-auto-var-init=zero" } */
++
++struct test_trailing_hole {
++        int one;
++        int two;
++        int three;
++        char four;
++        /* "sizeof(unsigned long) - 1" byte padding hole here. */
++};
++
++
++int foo ()
++{
++  struct test_trailing_hole var[10]; 
++  return var[2].four;
++}
++
++/* { dg-final { scan-assembler "movl\t\\\$0," } } */
++/* { dg-final { scan-assembler "rep stosq" } } */
+diff --git a/gcc/tree-cfg.c b/gcc/tree-cfg.c
+index 61b53913e0b30..367dcfa20bf89 100644
+--- a/gcc/tree-cfg.c
++++ b/gcc/tree-cfg.c
+@@ -3452,11 +3452,56 @@ verify_gimple_call (gcall *stmt)
+ 	}
+     }
+ 
++  /* For a call to .DEFERRED_INIT,
++     LHS = DEFERRED_INIT (SIZE of the DECL, INIT_TYPE, IS_VLA)
++     we should guarantee that the 1st and the 3rd arguments are consistent:
++     1st argument: SIZE of the DECL;
++     3rd argument: IS_VLA, 0 NO, 1 YES;
++
++     if IS_VLA is false, the 1st argument should be a constant and the same as
++     the size of the LHS.  */
++  if (gimple_call_internal_p (stmt, IFN_DEFERRED_INIT))
++    {
++      tree size_of_arg0 = gimple_call_arg (stmt, 0);
++      tree size_of_lhs = TYPE_SIZE_UNIT (TREE_TYPE (lhs));
++      tree is_vla_node = gimple_call_arg (stmt, 2);
++      bool is_vla = (bool) TREE_INT_CST_LOW (is_vla_node);
++
++      if (TREE_CODE (lhs) == SSA_NAME)
++	lhs = SSA_NAME_VAR (lhs);
++
++      poly_uint64 size_from_arg0, size_from_lhs;
++      bool is_constant_size_arg0 = poly_int_tree_p (size_of_arg0,
++						    &size_from_arg0);
++      bool is_constant_size_lhs = poly_int_tree_p (size_of_lhs,
++						   &size_from_lhs);
++      if (!is_vla)
++	{
++	  if (!is_constant_size_arg0)
++	    {
++	      error ("%<DEFFERED_INIT%> calls for non-VLA should have "
++		     "constant size for the first argument");
++	      return true;
++	    }
++	  else if (!is_constant_size_lhs)
++	    {
++	      error ("%<DEFFERED_INIT%> calls for non-VLA should have "
++		     "constant size for the LHS");
++	      return true;
++	    }
++	  else if (maybe_ne (size_from_arg0, size_from_lhs))
++	    {
++	      error ("%<DEFFERED_INIT%> calls for non-VLA should have same "
++		     "constant size for the first argument and LHS");
++	      return true;
++	    }
++	}
++    }
++
+   /* ???  The C frontend passes unpromoted arguments in case it
+      didn't see a function declaration before the call.  So for now
+      leave the call arguments mostly unverified.  Once we gimplify
+      unit-at-a-time we have a chance to fix this.  */
+-
+   for (i = 0; i < gimple_call_num_args (stmt); ++i)
+     {
+       tree arg = gimple_call_arg (stmt, i);
+diff --git a/gcc/tree-sra.c b/gcc/tree-sra.c
+index 3a9e14f50a08b..0363c5efb7861 100644
+--- a/gcc/tree-sra.c
++++ b/gcc/tree-sra.c
+@@ -384,6 +384,13 @@ static struct
+ 
+   /* Numbber of components created when splitting aggregate parameters.  */
+   int param_reductions_created;
++
++  /* Number of deferred_init calls that are modified.  */
++  int deferred_init;
++
++  /* Number of deferred_init calls that are created by
++     generate_subtree_deferred_init.  */
++  int subtree_deferred_init;
+ } sra_stats;
+ 
+ static void
+@@ -1388,7 +1395,14 @@ scan_function (void)
+ 
+ 	      t = gimple_call_lhs (stmt);
+ 	      if (t && !disqualify_if_bad_bb_terminating_stmt (stmt, t, NULL))
+-		ret |= build_access_from_expr (t, stmt, true);
++		{
++		  /* If the STMT is a call to DEFERRED_INIT, avoid setting
++		     cannot_scalarize_away_bitmap.  */
++		  if (gimple_call_internal_p (stmt, IFN_DEFERRED_INIT))
++		    ret |= !!build_access_from_expr_1 (t, stmt, true);
++		  else
++		    ret |= build_access_from_expr (t, stmt, true);
++		}
+ 	      break;
+ 
+ 	    case GIMPLE_ASM:
+@@ -4099,6 +4113,88 @@ get_repl_default_def_ssa_name (struct access *racc, tree reg_type)
+   return get_or_create_ssa_default_def (cfun, racc->replacement_decl);
+ }
+ 
++
++/* Generate statements to call .DEFERRED_INIT to initialize scalar replacements
++   of accesses within a subtree ACCESS; all its children, siblings and their
++   children are to be processed.
++   GSI is a statement iterator used to place the new statements.  */
++static void
++generate_subtree_deferred_init (struct access *access,
++				tree init_type,
++				tree is_vla,
++				gimple_stmt_iterator *gsi,
++				location_t loc)
++{
++  do
++    {
++      if (access->grp_to_be_replaced)
++	{
++	  tree repl = get_access_replacement (access);
++	  gimple *call
++	    = gimple_build_call_internal (IFN_DEFERRED_INIT, 3,
++					  TYPE_SIZE_UNIT (TREE_TYPE (repl)),
++					  init_type, is_vla);
++	  gimple_call_set_lhs (call, repl);
++	  gsi_insert_before (gsi, call, GSI_SAME_STMT);
++	  update_stmt (call);
++	  gimple_set_location (call, loc);
++	  sra_stats.subtree_deferred_init++;
++	}
++      if (access->first_child)
++	generate_subtree_deferred_init (access->first_child, init_type,
++					is_vla, gsi, loc);
++
++      access = access ->next_sibling;
++    }
++  while (access);
++}
++
++/* For a call to .DEFERRED_INIT:
++   var = .DEFERRED_INIT (size_of_var, init_type, is_vla);
++   examine the LHS variable VAR and replace it with a scalar replacement if
++   there is one, also replace the RHS call to a call to .DEFERRED_INIT of
++   the corresponding scalar relacement variable.  Examine the subtree and
++   do the scalar replacements in the subtree too.  STMT is the call, GSI is
++   the statment iterator to place newly created statement.  */
++
++static enum assignment_mod_result
++sra_modify_deferred_init (gimple *stmt, gimple_stmt_iterator *gsi)
++{
++  tree lhs = gimple_call_lhs (stmt);
++  tree init_type = gimple_call_arg (stmt, 1);
++  tree is_vla = gimple_call_arg (stmt, 2);
++
++  struct access *lhs_access = get_access_for_expr (lhs);
++  if (!lhs_access)
++    return SRA_AM_NONE;
++
++  location_t loc = gimple_location (stmt);
++
++  if (lhs_access->grp_to_be_replaced)
++    {
++      tree lhs_repl = get_access_replacement (lhs_access);
++      gimple_call_set_lhs (stmt, lhs_repl);
++      tree arg0_repl = TYPE_SIZE_UNIT (TREE_TYPE (lhs_repl));
++      gimple_call_set_arg (stmt, 0, arg0_repl);
++      sra_stats.deferred_init++;
++      gcc_assert (!lhs_access->first_child);
++      return SRA_AM_MODIFIED;
++    }
++
++  if (lhs_access->first_child)
++    generate_subtree_deferred_init (lhs_access->first_child,
++				    init_type, is_vla, gsi, loc);
++  if (lhs_access->grp_covered)
++    {
++      unlink_stmt_vdef (stmt);
++      gsi_remove (gsi, true);
++      release_defs (stmt);
++      return SRA_AM_REMOVED;
++    }
++
++  return SRA_AM_MODIFIED;
++}
++
+ /* Examine both sides of the assignment statement pointed to by STMT, replace
+    them with a scalare replacement if there is one and generate copying of
+    replacements if scalarized aggregates have been used in the assignment.  GSI
+@@ -4463,17 +4559,27 @@ sra_modify_function_body (void)
+ 	      break;
+ 
+ 	    case GIMPLE_CALL:
+-	      /* Operands must be processed before the lhs.  */
+-	      for (i = 0; i < gimple_call_num_args (stmt); i++)
++	      /* Handle calls to .DEFERRED_INIT specially.  */
++	      if (gimple_call_internal_p (stmt, IFN_DEFERRED_INIT))
+ 		{
+-		  t = gimple_call_arg_ptr (stmt, i);
+-		  modified |= sra_modify_expr (t, &gsi, false);
++		  assign_result = sra_modify_deferred_init (stmt, &gsi);
++		  modified |= assign_result == SRA_AM_MODIFIED;
++		  deleted = assign_result == SRA_AM_REMOVED;
+ 		}
+-
+-	      if (gimple_call_lhs (stmt))
++	      else
+ 		{
+-		  t = gimple_call_lhs_ptr (stmt);
+-		  modified |= sra_modify_expr (t, &gsi, true);
++		  /* Operands must be processed before the lhs.  */
++		  for (i = 0; i < gimple_call_num_args (stmt); i++)
++		    {
++		      t = gimple_call_arg_ptr (stmt, i);
++		      modified |= sra_modify_expr (t, &gsi, false);
++		    }
++
++	      	  if (gimple_call_lhs (stmt))
++		    {
++		      t = gimple_call_lhs_ptr (stmt);
++		      modified |= sra_modify_expr (t, &gsi, true);
++		    }
+ 		}
+ 	      break;
+ 
+diff --git a/gcc/tree-ssa-structalias.c b/gcc/tree-ssa-structalias.c
+index c4308551d1bff..0b8a81ff1135d 100644
+--- a/gcc/tree-ssa-structalias.c
++++ b/gcc/tree-ssa-structalias.c
+@@ -4916,6 +4916,9 @@ find_func_aliases_for_call (struct function *fn, gcall *t)
+       && find_func_aliases_for_builtin_call (fn, t))
+     return;
+ 
++  if (gimple_call_internal_p (t, IFN_DEFERRED_INIT))
++    return;
++
+   fi = get_fi_for_callee (t);
+   if (!in_ipa_mode
+       || (fi->decl && fndecl && !fi->is_fn_info))
+diff --git a/gcc/tree-ssa-uninit.c b/gcc/tree-ssa-uninit.c
+index cb6d11452026b..84eadd1179ea2 100644
+--- a/gcc/tree-ssa-uninit.c
++++ b/gcc/tree-ssa-uninit.c
+@@ -135,6 +135,43 @@ warn_uninit (enum opt_code wc, tree t, tree expr, tree var,
+   if (is_gimple_assign (context)
+       && gimple_assign_rhs_code (context) == COMPLEX_EXPR)
+     return;
++
++
++  /* Ignore REALPART_EXPR or IMAGPART_EXPR if its operand is a call to
++     .DEFERRED_INIT.  This is for handling the following case correctly:
++
++  1 typedef _Complex float C;
++  2 C foo (int cond)
++  3 {
++  4   C f;
++  5   __imag__ f = 0;
++  6   if (cond)
++  7     {
++  8       __real__ f = 1;
++  9       return f;
++ 10     }
++ 11   return f;
++ 12 }
++
++    with -ftrivial-auto-var-init, compiler will insert the following
++    artificial initialization at line 4:
++  f = .DEFERRED_INIT (f, 2);
++  _1 = REALPART_EXPR <f>;
++
++    without the following special handling, _1 = REALPART_EXPR <f> will
++    be treated as the uninitialized use point, which is incorrect. (the
++    real uninitialized use point is at line 11).  */
++  if (is_gimple_assign (context)
++      && (gimple_assign_rhs_code (context) == REALPART_EXPR
++	  || gimple_assign_rhs_code (context) == IMAGPART_EXPR))
++    {
++      tree v = gimple_assign_rhs1 (context);
++      if (TREE_CODE (TREE_OPERAND (v, 0)) == SSA_NAME
++	  && gimple_call_internal_p (SSA_NAME_DEF_STMT (TREE_OPERAND (v, 0)),
++				     IFN_DEFERRED_INIT))
++	return;
++    }
++
+   if (!has_undefined_value_p (t))
+     return;
+ 
+@@ -209,6 +246,12 @@ check_defs (ao_ref *ref, tree vdef, void *data_)
+ {
+   check_defs_data *data = (check_defs_data *)data_;
+   gimple *def_stmt = SSA_NAME_DEF_STMT (vdef);
++
++  /* Ignore the vdef if the definition statement is a call
++     to .DEFERRED_INIT function.  */
++  if (gimple_call_internal_p (def_stmt, IFN_DEFERRED_INIT))
++    return false;
++
+   /* If this is a clobber then if it is not a kill walk past it.  */
+   if (gimple_clobber_p (def_stmt))
+     {
+@@ -614,6 +657,12 @@ warn_uninitialized_vars (bool wmaybe_uninit)
+ 	  ssa_op_iter op_iter;
+ 	  tree use;
+ 
++	  /* The call is an artificial use, will not provide meaningful
++	     error message.  If the result of the call is used somewhere
++	     else, we warn there instead.  */
++	  if (gimple_call_internal_p (stmt, IFN_DEFERRED_INIT))
++	    continue;
++
+ 	  if (is_gimple_debug (stmt))
+ 	    continue;
+ 
+diff --git a/gcc/tree-ssa.c b/gcc/tree-ssa.c
+index 4cc400d3c2eb1..0fba404babe95 100644
+--- a/gcc/tree-ssa.c
++++ b/gcc/tree-ssa.c
+@@ -1325,6 +1325,46 @@ ssa_undefined_value_p (tree t, bool partial)
+   if (gimple_nop_p (def_stmt))
+     return true;
+ 
++  /* The value is undefined if the definition statement is a call
++     to .DEFERRED_INIT function.  */
++  if (gimple_call_internal_p (def_stmt, IFN_DEFERRED_INIT))
++    return true;
++
++  /* The value is partially undefined if the definition statement is
++     a REALPART_EXPR or IMAGPART_EXPR and its operand is defined by
++     the call to .DEFERRED_INIT function.  This is for handling the
++     following case:
++
++  1 typedef _Complex float C;
++  2 C foo (int cond)
++  3 {
++  4   C f;
++  5   __imag__ f = 0;
++  6   if (cond)
++  7     {
++  8       __real__ f = 1;
++  9       return f;
++ 10     }
++ 11   return f;
++ 12 }
++
++    with -ftrivial-auto-var-init, compiler will insert the following
++    artificial initialization:
++  f = .DEFERRED_INIT (f, 2);
++  _1 = REALPART_EXPR <f>;
++
++    we should treat the definition _1 = REALPART_EXPR <f> as undefined.  */
++  if (partial && is_gimple_assign (def_stmt)
++      && (gimple_assign_rhs_code (def_stmt) == REALPART_EXPR
++	  || gimple_assign_rhs_code (def_stmt) == IMAGPART_EXPR))
++    {
++      tree real_imag_part = TREE_OPERAND (gimple_assign_rhs1 (def_stmt), 0);
++      if (TREE_CODE (real_imag_part) == SSA_NAME
++	 && gimple_call_internal_p (SSA_NAME_DEF_STMT (real_imag_part),
++				    IFN_DEFERRED_INIT))
++	return true;
++    }
++
+   /* Check if the complex was not only partially defined.  */
+   if (partial && is_gimple_assign (def_stmt)
+       && gimple_assign_rhs_code (def_stmt) == COMPLEX_EXPR)
+diff --git a/gcc/tree.c b/gcc/tree.c
+index 486cdb0e7c798..3d15948fd1a36 100644
+--- a/gcc/tree.c
++++ b/gcc/tree.c
+@@ -9511,6 +9511,19 @@ build_common_builtin_nodes (void)
+   tree tmp, ftype;
+   int ecf_flags;
+ 
++  if (!builtin_decl_explicit_p (BUILT_IN_CLEAR_PADDING))
++    {
++      ftype = build_function_type_list (void_type_node,
++					ptr_type_node,
++					ptr_type_node,
++					integer_type_node,
++					NULL_TREE);
++      local_define_builtin ("__builtin_clear_padding", ftype,
++			    BUILT_IN_CLEAR_PADDING,
++			    "__builtin_clear_padding",
++			      ECF_LEAF | ECF_NOTHROW);
++    }
++
+   if (!builtin_decl_explicit_p (BUILT_IN_UNREACHABLE)
+       || !builtin_decl_explicit_p (BUILT_IN_ABORT))
+     {

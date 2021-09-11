@@ -271,11 +271,22 @@ pushd "$DIR/Tarballs"
             git init > /dev/null
             git add . > /dev/null
             git commit -am "BASE" > /dev/null
+        fi
+
+        if [ "$git_patch" = "1" ]; then
             git apply "$DIR"/Patches/gcc.patch > /dev/null
         else
             patch -p1 < "$DIR/Patches/gcc.patch" > /dev/null
         fi
         $MD5SUM "$DIR/Patches/gcc.patch" > .patch.applied
+
+        if [ "$git_patch" = "1" ]; then
+            git apply --whitespace=nowarn "$DIR"/Patches/gcc-ftrivial-auto-var-init.patch > /dev/null
+        else
+            patch -p1 < "$DIR/Patches/gcc-ftrivial-auto-var-init.patch" > /dev/null
+        fi
+        $MD5SUM "$DIR/Patches/gcc-ftrivial-auto-var-init.patch" >> .patch.applied
+
     popd
 
     if [ "$SYSTEM_NAME" = "Darwin" ]; then

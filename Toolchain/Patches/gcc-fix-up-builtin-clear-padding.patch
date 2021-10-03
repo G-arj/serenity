@@ -1,0 +1,106 @@
+From a21bd3cebd6f54af70a37c18b8fbeae933fb6515 Mon Sep 17 00:00:00 2001
+From: Jakub Jelinek <jakub@redhat.com>
+Date: Tue, 27 Jul 2021 09:59:37 +0200
+Subject: [PATCH] gimple-fold: Fix up __builtin_clear_padding on classes with
+ virtual inheritence [PR101586]
+
+For the following testcase, B is 16-byte type, containing 8-byte
+virtual pointer and 1-byte A member, and C contains two FIELD_DECLs,
+one with B type and size of just 8-byte and then a field with type
+A and 1-byte size.
+The __builtin_clear_padding code was upset about the B typed FIELD_DECL
+containing FIELD_DECLs beyond the field size and triggered
+assertion failure.
+This patch makes it ignore all FIELD_DECLs that are (fully) beyond the sz
+passed from the caller (except for the flexible array member
+diagnostics that is kept).
+
+2021-07-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/101586
+	* gimple-fold.c (clear_padding_type): Ignore FIELD_DECLs with byte
+	positions above or equal to sz except for diagnostics of flexible
+	array members.
+
+	* g++.dg/torture/builtin-clear-padding-4.C: New test.
+---
+ gcc/gimple-fold.c                             |  4 ++
+ .../g++.dg/torture/builtin-clear-padding-4.C  | 44 +++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+ create mode 100644 gcc/testsuite/g++.dg/torture/builtin-clear-padding-4.C
+
+diff --git a/gcc/gimple-fold.c b/gcc/gimple-fold.c
+index a3afe871f6b..b6f60543543 100644
+--- a/gcc/gimple-fold.c
++++ b/gcc/gimple-fold.c
+@@ -4697,6 +4697,8 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 		if (fldsz == 0)
+ 		  continue;
+ 		HOST_WIDE_INT pos = int_byte_position (field);
++		if (pos >= sz)
++		  continue;
+ 		HOST_WIDE_INT bpos
+ 		  = tree_to_uhwi (DECL_FIELD_BIT_OFFSET (field));
+ 		bpos %= BITS_PER_UNIT;
+@@ -4772,6 +4774,8 @@ clear_padding_type (clear_padding_struct *buf, tree type, HOST_WIDE_INT sz)
+ 	    else
+ 	      {
+ 		HOST_WIDE_INT pos = int_byte_position (field);
++		if (pos >= sz)
++		  continue;
+ 		HOST_WIDE_INT fldsz = tree_to_shwi (DECL_SIZE_UNIT (field));
+ 		gcc_assert (pos >= 0 && fldsz >= 0 && pos >= cur_pos);
+ 		clear_padding_add_padding (buf, pos - cur_pos);
+diff --git a/gcc/testsuite/g++.dg/torture/builtin-clear-padding-4.C b/gcc/testsuite/g++.dg/torture/builtin-clear-padding-4.C
+new file mode 100644
+index 00000000000..5936cdf876b
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/torture/builtin-clear-padding-4.C
+@@ -0,0 +1,44 @@
++// PR middle-end/101586
++
++struct A { char a; };
++struct B : virtual A {};
++struct C : B {};
++struct D : virtual A, C {};
++
++__attribute__((noipa)) A *
++baz (C *p, D *q)
++{
++  if (p)
++    return dynamic_cast <A *> (p);
++  else
++    return dynamic_cast <A *> (q);
++}
++
++void
++foo ()
++{ 
++  C c;
++  c.a = 42;
++  __builtin_clear_padding (&c);
++  A *p = baz (&c, 0);
++  if (c.a != 42 || p->a != 42)
++    __builtin_abort ();
++}
++
++void
++bar ()
++{
++  D d;
++  d.a = 42;
++  __builtin_clear_padding (&d);
++  A *p = baz (0, &d);
++  if (d.a != 42 || p->a != 42)
++    __builtin_abort ();
++}
++
++int
++main ()
++{
++  foo ();
++  bar ();
++}
+-- 
+2.30.2
+

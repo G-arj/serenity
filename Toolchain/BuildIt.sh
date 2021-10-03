@@ -281,6 +281,13 @@ pushd "$DIR/Tarballs"
         $MD5SUM "$DIR/Patches/gcc.patch" > .patch.applied
 
         if [ "$git_patch" = "1" ]; then
+            git apply --whitespace=nowarn "$DIR"/Patches/gcc-fix-up-builtin-clear-padding.patch > /dev/null
+        else
+            patch -p1 < "$DIR/Patches/gcc-fix-up-builtin-clear-padding.patch" > /dev/null
+        fi
+        $MD5SUM "$DIR/Patches/gcc-fix-up-builtin-clear-padding.patch" >> .patch.applied
+
+        if [ "$git_patch" = "1" ]; then
             git apply --whitespace=nowarn "$DIR"/Patches/gcc-ftrivial-auto-var-init.patch > /dev/null
         else
             patch -p1 < "$DIR/Patches/gcc-ftrivial-auto-var-init.patch" > /dev/null

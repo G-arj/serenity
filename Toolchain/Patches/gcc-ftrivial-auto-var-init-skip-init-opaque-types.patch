@@ -1,0 +1,56 @@
+commit 5b1ef8b9db964ec2375df29a73d2b1651afe7ea9
+Author: Peter Bergner <bergner@linux.ibm.com>
+Date:   Wed Dec 1 13:17:52 2021 -0600
+
+    middle-end: Skip initialization of opaque type variables [PR103127]
+    
+    For -ftrivial-auto-var-init=*, skip initializing the variable if it is an
+    opaque type, because CONST0_RTX(mode) is not defined for opaque modes.
+    
+    2021-12-01  Peter Bergner  <bergner@linux.ibm.com>
+    
+    gcc/
+            PR middle-end/103127
+            * gimplify.c (is_var_need_auto_init): Handle opaque types.
+    
+    gcc/testsuite/
+            PR middle-end/103127
+            * gcc.target/powerpc/pr103127.c: New test.
+
+diff --git a/gcc/gimplify.c b/gcc/gimplify.c
+index 8624f8221fd..326476f0238 100644
+--- a/gcc/gimplify.c
++++ b/gcc/gimplify.c
+@@ -1829,6 +1829,7 @@ is_var_need_auto_init (tree decl)
+ 	  || !DECL_HARD_REGISTER (decl))
+       && (flag_auto_var_init > AUTO_INIT_UNINITIALIZED)
+       && (!lookup_attribute ("uninitialized", DECL_ATTRIBUTES (decl)))
++      && !OPAQUE_TYPE_P (TREE_TYPE (decl))
+       && !is_empty_type (TREE_TYPE (decl)))
+     return true;
+   return false;
+diff --git a/gcc/testsuite/gcc.target/powerpc/pr103127.c b/gcc/testsuite/gcc.target/powerpc/pr103127.c
+new file mode 100644
+index 00000000000..801fc0a4620
+--- /dev/null
++++ b/gcc/testsuite/gcc.target/powerpc/pr103127.c
+@@ -0,0 +1,19 @@
++/* PR target/103127 */
++/* { dg-require-effective-target power10_ok } */
++/* { dg-options "-O2 -mdejagnu-cpu=power10 -ftrivial-auto-var-init=zero" } */
++
++/* Verify we do not ICE on the following tests.  */
++
++void
++foo (__vector_quad *dst)
++{
++  __vector_quad acc;
++  *dst = acc;
++}
++
++void
++bar (__vector_pair *dst)
++{
++  __vector_pair pair;
++  *dst = pair;
++}

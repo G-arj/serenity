@@ -104,13 +104,13 @@
     "url": "https://github.com/SerenityOS/serenity/pull/9127#issuecomment-890603297"
   },
   {
-    "quote": "i'm here to influencer-marknadsföring and mjukvaruutveckling, and i'm all done utveckling the mjukvaru",
+    "quote": "i'm here to influencer-marknadsfÃ¶ring and mjukvaruutveckling, and i'm all done utveckling the mjukvaru",
     "author": "thakis",
     "url": "https://discord.com/channels/830522505605283862/859531354219872266/877267999940292660",
     "utc_time": 1629242612
   },
   {
-    "quote": "\"Is there an ISO of Serenity?\" – \"No, because they charge money, and because it's not a spec.\" – \"… what?!\"",
+    "quote": "\"Is there an ISO of Serenity?\" â \"No, because they charge money, and because it's not a spec.\" â \"â¦ what?!\"",
     "author": "BenW",
     "url": "https://discord.com/channels/830522505605283862/859531354219872266/889222244218327130",
     "utc_time": 1632077460
@@ -129,7 +129,7 @@
     "utc_time": 1630578967
   },
   {
-    "quote": "slaps roof of PR queue\nThis baby can hold so many e̴̾̓l̷͑͑d̸̉̚r̵̅͂ï̷̀t̸͗̉c̵̾͝h̶̋͗ ̸̲̚h̸͒́ȱ̸r̶̛̄ȓ̶͌o̶͐͘r̴̲͝s̴̐͆",
+    "quote": "slaps roof of PR queue\nThis baby can hold so many eÌ´Ì¾ÌlÌ·ÍÍdÌ¸ÌÌrÌµÌÍiÌ·ÌÌtÌ¸ÍÌcÌµÌ¾ÍhÌ¶ÌÍ Ì¸ÌÌ²hÌ¸ÍÍoÌ¸ÌÌrÌ¶ÌÌrÌ¶ÌÍoÌ¶ÍÍrÌ´ÍÌ²sÌ´ÌÍ",
     "author": "Andrew Kaster",
     "url": "https://discord.com/channels/830522505605283862/830525235803586570/922976701032562738",
     "utc_time": 1640125193
@@ -183,5 +183,11 @@
     "author": "Agni",
     "url": "https://discord.com/channels/830522505605283862/859531354219872266/882660065474146304",
     "utc_time": 1630512958
+  },
+  {
+    "quote": "Testing 123",
+    "author": "unit tests",
+    "url": "http://example.com",
+    "utc_time": 1643778361
   }
 ]
